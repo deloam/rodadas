@@ -17,7 +17,7 @@ from ensemble import treinar_ensemble, prever_ensemble # Segundo Cérebro
 from analise_temporal import renderizar_analise_temporal
 from montador import renderizar_montador_manual
 from analise_conexoes import renderizar_mapa_conexoes
-from historico_previsoes import salvar_previsoes_detalhadas
+from historico_previsoes import salvar_previsoes_detalhadas, executar_retro_analise
 from dashboard_resumo import renderizar_dashboard_resumo
 
 # ... (rest of imports/functions) ...
@@ -135,7 +135,37 @@ with tab_lab:
     renderizar_tab_lab(df, int(n_dias))
 
 with tab_previsao:
+    # --- Feedback do Sistema (Persistente após Rerun) ---
+    if 'feedback_msg' in st.session_state:
+        msg = st.session_state.feedback_msg
+        if msg['type'] == 'success':
+            st.success(msg['msg'])
+            st.toast(msg['msg'])
+        elif msg['type'] == 'warning':
+            st.warning(msg['msg'])
+            st.toast("⚠️ " + msg['msg'])
+        elif msg['type'] == 'error':
+            st.error(msg['msg'])
+        # Limpar após exibir
+        del st.session_state.feedback_msg
+
     renderizar_dashboard_resumo(df)
+    
+    # 2. Status da Retro-Análise (Auto-Aprendizado)
+    try:
+        retro_status = executar_retro_analise(df)
+        if isinstance(retro_status, dict):
+            # Relatório Completo
+            with st.expander(f"🤖 Auto-Calibragem da IA ({retro_status['msg']})", expanded=False):
+                st.success(retro_status['vies_descoberto'])
+                st.metric("Média de Acertos (IA)", f"{retro_status['media_global']:.2f}")
+                st.caption(retro_status['detalhe'])
+        elif retro_status:
+            # Status de Progresso
+            st.caption(f"🧠 {retro_status}")
+    except Exception as e:
+        pass # Silenciar erros
+    st.markdown("---")
     
     c1, c2 = st.columns(2)
     btn_ia = c1.button("🔮 Previsão IA")
@@ -421,95 +451,121 @@ with tab_previsao:
                 # Ordenar pelos melhores scores
                 candidatos.sort(key=lambda x: x['score'], reverse=True)
                 
-                # Pegar os top 25% melhores para manter variedade
-                top_cut = max(len(candidatos) // 4, qtd_sequencias)
-                melhores_candidatos = candidatos[:top_cut]
-                
-                # Selecionar aleatoriamente dentre os melhores
-                indices_finais = np.random.choice(len(melhores_candidatos), qtd_sequencias, replace=False)
-                
-                for idx in indices_finais:
-                    resultados.append(melhores_candidatos[idx]) # Guarda o objeto completo com métricas
+                # SELECIONAR OS JOGOS FINAIS
+                if qtd_sequencias > 100:
+                    # Se usuário pediu muitos, prioriza a ELITE (Top Score Puro)
+                    resultados = candidatos[:qtd_sequencias]
+                else:
+                    # Se pediu poucos (ex: 1 a 100), mistura um pouco do Top 25% para variabilidade
+                    top_cut = max(len(candidatos) // 4, qtd_sequencias)
+                    melhores_candidatos = candidatos[:top_cut]
+                    
+                    indices_finais = np.random.choice(len(melhores_candidatos), qtd_sequencias, replace=False)
+                    for idx in indices_finais:
+                        resultados.append(melhores_candidatos[idx])
+
+                # Ordenar final por Score descendente
+                resultados.sort(key=lambda x: x['score'], reverse=True)
 
                 st.success(f"Previsões geradas com sucesso! (Selecionadas as melhores de {pool_size} simulações)")
                 
-                # --- MEMÓRIA DA IA (Salvar para aprendizado futuro) ---
+                # --- MEMÓRIA DA IA ---
                 try:
-                    qtd_salva = salvar_previsoes_detalhadas(resultados, df)
-                    st.toast(f"💾 {qtd_salva} palpites memorizados no Histórico com Meta-Dados Completos!")
+                    # Restrição de quantidade
+                    if len(resultados) <= 100:
+                        qtd_salva = salvar_previsoes_detalhadas(resultados, df)
+                        st.session_state.feedback_msg = {
+                            "type": "success",
+                            "msg": f"✅ {qtd_salva} palpites salvos no Histórico da IA com sucesso!"
+                        }
+                    else:
+                        st.session_state.feedback_msg = {
+                            "type": "warning",
+                            "msg": "ℹ️ Modo Massa: Histórico não salvo (>100 jogos) para performance."
+                        }
                 except Exception as e:
-                    st.error(f"Erro ao salvar histórico: {e}")
+                    st.session_state.feedback_msg = {
+                        "type": "error",
+                        "msg": f"Erro ao salvar: {str(e)}"
+                    }
                 
-                # Salvar a melhor sequência (primeira) na sessão para o desdobrador
+                # Persistir para exibir em baixo (Paginado)
+                st.session_state.resultados_ia = resultados
+                st.session_state.pagina_atual = 1
                 if resultados:
                     st.session_state.ultima_previsao = resultados[0]['seq']
-
-                # Se tiver gabarito, prepara conjunto para comparação
-                correta_set = set(sequencia_correta_auto) if sequencia_correta_auto else None
                 
-                # Calcular acertos e ordenar se houver gabarito
-                if correta_set:
-                    for item in resultados:
-                        item['acertos'] = len(set(item['seq']).intersection(correta_set))
-                    
-                    # Ordenar IA: Mais acertos primeiro, depois maior Score.
-                    resultados.sort(key=lambda x: (x['acertos'], x['score']), reverse=True)
-                    
-                    st.markdown(f"### 📝 Comparando com Concurso {concurso_str}")
-                    st.caption(f"Gabarito Oficial: {sorted(sequencia_correta_auto)}")
+                st.rerun()
                 
-                for i, item in enumerate(resultados):
-                    r = item['seq']
-                    m = item['metrics']
-                    score = item['score']
-                    
-                    # Título da Sequência
-                    acertos_label = ""
-                    if correta_set:
-                        acertos = item.get('acertos', 0)
-                        acertos_label = f" | 🎯 Acertos: {acertos}/15"
-                    
-                    st.markdown(f"### Sequência {i+1} <small>(Score: {score}/13{acertos_label})</small>", unsafe_allow_html=True)
-                    
-                    # HTML das Bolinhas
-                    html_bolas = ""
-                    for num in r:
-                        if correta_set:
-                            if num in correta_set:
-                                # Acertou (Verde)
-                                style = "color: white; background-color: #2ecc71; border: 1px solid #27ae60"
-                            else:
-                                # Errou (Vermelho)
-                                style = "color: white; background-color: #e74c3c; border: 1px solid #c0392b"
-                        else:
-                            # Padrão (Cinza Claro)
-                            style = "color: black; background-color: #f0f2f6; border: 1px solid #d0d0d0"
-                        
-                        html_bolas += f"<span style='{style}; width: 40px; height: 40px; line-height: 40px; text-align: center; margin: 4px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block'>{num}</span>"
-                    
-                    st.markdown(html_bolas, unsafe_allow_html=True)
-                    
-                    # Exibir métricas da sequência
-                    st.caption(f"🧬 **DNA:** {m['impares']} Ímpares | {m['primos']} Primos | 🖼️ **{m['moldura']} Moldura** | 🌀 **{m['fibo']} Fibonacci** | ♻️ {m['repetentes']} Repetidas | Σ {m['soma']}")
-                    st.markdown("---")
+                # (Visualização movida para fora do bloco de geração por performance)
 
-                # Aprendizado contínuo (fica fora do loop visual)
-                if sequencia_correta_auto:
-                    try:
-                        # Treinar apenas uma vez com o gabarito
-                        correta = sorted(sequencia_correta_auto)
-                        correta_bin = np.zeros(25)
-                        for num in correta:
-                            correta_bin[num - 1] = 1
-                        
-                        # Treino rápido
-                        modelo.fit(entradas[-1][None, ...], correta_bin[None, ...], epochs=3, verbose=0)
-                        st.success(f"🧠 Modelo re-treinado com o resultado do concurso {concurso_str}!")
-                    except Exception as e:
-                        st.error(f"Erro no treino online: {e}")
-
-                if salvar_aprendizado:
-                    save_model(modelo, "modelo_treinado.keras")
-                    st.success("Modelo salvo com aprendizado persistente.")
         except Exception as e:
             st.error(f"Erro: {str(e)}")
+
+    # --- ÁREA DE VISUALIZAÇÃO DE RESULTADOS (PAGINADA) ---
+    st.markdown("---")
+    
+    # Verifica se existem resultados na sessão (Memória Persistente)
+    if 'resultados_ia' in st.session_state and st.session_state.resultados_ia:
+        results = st.session_state.resultados_ia
+        
+        # 1. Conferência (Se houver gabarito selecionado)
+        if sequencia_correta_auto is not None:
+             correta_set = set(sequencia_correta_auto)
+             # Calcular acertos e atualizar score
+             for item in results:
+                 acertos = len(set(item['seq']).intersection(correta_set))
+                 item['acertos_check'] = acertos
+             
+             # Re-ordenar por ACERTOS (Top) -> Score
+             results.sort(key=lambda x: (x.get('acertos_check', 0), x['score']), reverse=True)
+             
+             st.info(f"🔎 Resultados reordenados por acertos no Concurso {concurso_str}")
+
+        # 2. Paginação
+        total_items = len(results)
+        page_size = 10
+        total_pages = (total_items - 1) // page_size + 1
+        
+        col_pag1, col_pag2, col_pag3 = st.columns([2, 1, 2])
+        with col_pag2:
+            st.session_state.pagina_atual = st.number_input(
+                f"Página (Total {total_pages})", 
+                min_value=1, max_value=total_pages, 
+                value=st.session_state.get('pagina_atual', 1)
+            )
+        
+        start_idx = (st.session_state.pagina_atual - 1) * page_size
+        end_idx = start_idx + page_size
+        subset = results[start_idx:end_idx]
+        
+        st.markdown(f"**Mostrando {start_idx+1} a {min(end_idx, total_items)} de {total_items} previsões**")
+        
+        # 3. Renderizar Lista
+        for i, item in enumerate(subset):
+            real_index = start_idx + i + 1
+            r = item['seq']
+            m = item['metrics']
+            score = item['score']
+            
+            acertos_label = ""
+            correta_set = set(sequencia_correta_auto) if sequencia_correta_auto is not None else None
+            
+            html_numeros = ""
+            if correta_set:
+                matches = set(r).intersection(correta_set)
+                acertos_cnt = len(matches)
+                cor_badge = "green" if acertos_cnt >= 11 else "#666"
+                acertos_label = f" <span style='background-color:{cor_badge}; color:white; padding:2px 6px; border-radius:4px; font-size:14px'>{acertos_cnt} ACERTOS</span>"
+                
+                html_numeros = ' '.join([
+                    f"<span style='color: white; background-color: {'#27ae60' if num in correta_set else '#c0392b'}; padding: 4px; margin: 2px; border-radius: 5px; display:inline-block; width:28px; text-align:center'>{num}</span>"
+                    for num in r
+                ])
+            else:
+                html_numeros = ' '.join([f"<span style='color: white; background-color: #2980b9; padding: 4px; margin: 2px; border-radius: 5px; display:inline-block; width:28px; text-align:center'>{num}</span>" for num in r])
+
+            st.markdown(f"### #{real_index} <small>(Score: {score}/12){acertos_label}</small>", unsafe_allow_html=True)
+            st.markdown(html_numeros, unsafe_allow_html=True)
+            st.caption(f"DNA: Ímpares: {m.get('impares')} | Primos: {m.get('primos')} | Moldura: {m.get('moldura')} | Fibo: {m.get('fibo')}")
+            st.markdown("---")

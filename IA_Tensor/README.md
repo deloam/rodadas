@@ -1,48 +1,60 @@
-# 🧠 LotoIA - Inteligência Artificial para Lotofácil
+# 🧠 LotoIA Pro - Sistema de Inteligência Artificial para Lotofácil
 
-> **Sistema de Alta Performance** que combina Deep Learning (LSTM), Estatística Híbrida e Backtesting Financeiro para maximizar suas chances.
+> **A Plataforma Definitiva** que combina Redes Neurais (LSTM), Random Forest (Ensemble), Análise Temporal e Estatística Avançada para maximizar suas chances na Lotofácil.
 
-![Badge License](https://img.shields.io/badge/license-MIT-green) ![Badge Python](https://img.shields.io/badge/python-3.11-blue) ![Badge Tensorflow](https://img.shields.io/badge/tensorflow-keras-orange) ![Badge Status](https://img.shields.io/badge/status-active-success)
+![Badge License](https://img.shields.io/badge/license-MIT-green) ![Badge Python](https://img.shields.io/badge/python-3.11-blue) ![Badge Tensorflow](https://img.shields.io/badge/tensorflow-keras-orange) ![Badge ScikitLearn](https://img.shields.io/badge/sklearn-forest-yellow) ![Badge Status](https://img.shields.io/badge/status-active-success)
 
 ---
 
-## ✨ Funcionalidades Principais
+## ✨ Funcionalidades "Pro"
 
-O **LotoIA** não é apenas um gerador de números aleatórios. É uma plataforma completa de análise quantitativa:
+O **LotoIA** evoluiu. Agora ele conta com múltiplas camadas de inteligência trabalhando juntas:
 
-### 🔮 1. Previsão Híbrida (AI + Stat)
-Utilizamos um "Cérebro Triplo" para gerar palpites:
-- **🤖 Rede Neural LSTM:** Aprende padrões sequenciais complexos de longo prazo.
-- **📈 Tendência de Frequência:** Analisa o "momento" dos números nos últimos 10 concursos.
-- **⏱️ Fator de Atraso:** Identifica matematicamente números "maduros" para sair.
-- **🎯 Filtros Manuais:** Permite ao usuário **Fixar** ou **Excluir** números específicos.
+### 🧠 1. Segundo Cérebro (Ensemble AI)
+Abandonamos a dependência de um único modelo. O sistema agora opera em modo **Híbrido**:
+- **🤖 Rede Neural LSTM:** Especialista em padrões sequenciais longos.
+- **🌳 Random Forest (Segundo Cérebro):** Árvore de decisões para capturar regras complexas não-lineares.
+- **📊 Estatística Clássica:** Pesos para **Atraso** (números maduros) e **Frequência Recente**.
+- **Resultado:** Uma previsão final robusta e auditada por múltiplas inteligências.
 
-### 📊 2. Análise de Padrões (DNA do Jogo)
-Visualizações ricas para entender a estrutura dos sorteios:
-- **Métricas de Equilíbrio:** Gráficos de Ímpares vs Pares, Primos e Soma Total.
-- **Estatísticas de Gaps:** Tempo médio que duplas e trios demoram para sair novamente.
-- **Top Recorrências:** As combinações que mais saem juntas na história.
+### ☀️ 2. Dashboard Executivo ("Briefing do Dia")
+Ao abrir o app, você recebe um resumo imediato:
+- **📅 Contexto:** "Hoje é Sexta-feira".
+- **🔥 Quentes do Dia:** "Os números 13 e 24 têm 80% de chance nas sextas".
+- **⚠️ Status do Ciclo:** "Faltam 3 números para fechar o ciclo atual".
+- **💎 Recomendação:** A IA cruza todos esses dados e destaca os melhores números para jogar **hoje**.
 
-### 🧪 3. Laboratório de Backtest & Financeiro
-Não confie cegamente. Teste!
-- **Simulação Real:** "Viaje no tempo" e rode a IA em concursos passados (ex: últimos 50).
-- **IA vs Sorte:** Gráfico comparativo mostrando o desempenho da IA contra jogos aleatórios.
-- **Relatório Financeiro:** Cálculo automático de **Investimento**, **Retorno** e **Lucro Líquido** real.
+### 🕵️‍♂️ 3. Memória & Aprendizado (Feedback Loop)
+A IA agora tem memória de elefante:
+- **💾 Histórico Persistente:** Cada palpite gerado é salvo com uma "Impressão Digital" (Hash Único).
+- **📝 Metadados Ricos:** Guardamos não só os números, mas o dia da semana, fase da lua, métricas de DNA e Score no momento da geração.
+- **🎯 Objetivo:** Permitir, futuramente, que o sistema analise seus próprios erros e se auto-calibre.
 
-### 🔢 4. Desdobrador Econômico
-- Transforme previsões caras (16, 17, 20 números) em múltiplos jogos simples de **R$ 3,50**.
-- **Download Automático:** Baixe seus jogos prontos em `.txt`.
+### 🕸️ 4. Mapa de Conexões (Correlações)
+Descubra as "panelinhas" secretas dos números:
+- **Heatmap Interativo:** Visualize quem sai com quem.
+- **Melhores Amigos:** "Se jogar o 01, jogue o 04 junto (92% de sinergia)".
+- **Inimigos Mortais:** "Evite jogar 01 e 25 juntos, eles se repelem".
+
+### 📅 5. Análise Temporal & Sazonal
+- **🔎 Insights Automáticos:** Clique em um botão e a IA varre o banco de dados procurando anomalias (ex: "O nº 23 ama dias ímpares").
+- **Filtros Poderosos:** Analise comportamentos específicos por Ano, Trimestre, Dia da Semana ou Dias Pares/Ímpares.
+
+### 🏗️ 6. Montador Manual com Auditoria
+- Um grid interativo para você montar seus jogos.
+- **Auditoria em Tempo Real:** Conforme você clica, o sistema analisa o **DNA** (Ímpares, Primos, Moldura, Fibonacci) e dá uma nota de 0 a 5 estrelas para a qualidade do seu jogo.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-Este projeto foi construído com uma stack moderna de Data Science:
+Este projeto foi construído com uma stack de ponta em Data Science:
 
-- **Frontend:** [Streamlit](https://streamlit.io/) (Interface Reativa e Moderna)
-- **Core AI:** [TensorFlow / Keras](https://www.tensorflow.org/) (Modelos LSTM)
-- **Data:** [Pandas](https://pandas.pydata.org/) & [NumPy](https://numpy.org/)
-- **Viz:** [Altair](https://altair-viz.github.io/) (Gráficos Interativos)
+- **Frontend:** [Streamlit](https://streamlit.io/) (Interface Tabs Organizada)
+- **Deep Learning:** [TensorFlow / Keras](https://www.tensorflow.org/) (LSTM)
+- **Machine Learning:** [Scikit-Learn](https://scikit-learn.org/) (Random Forest Regressor)
+- **Data Engineering:** [Pandas](https://pandas.pydata.org/) & [NumPy](https://numpy.org/)
+- **Visualização:** [Altair](https://altair-viz.github.io/) (Heatmaps e Gráficos Interativos)
 
 ---
 
@@ -57,7 +69,7 @@ Certifique-se de ter o **Python 3.11** instalado.
 
 2. **Instale as dependências:**
    ```bash
-   pip install streamlit pandas numpy tensorflow altair
+   pip install streamlit pandas numpy tensorflow scikit-learn altair requests
    ```
 
 3. **Execute a aplicação:**
@@ -70,14 +82,14 @@ Certifique-se de ter o **Python 3.11** instalado.
 
 ---
 
-## 📸 Screenshots
+## 📸 Estrutura do App
 
-### Painel de Previsão & Heatmap
-Visualize as "zonas quentes" do volante antes de jogar.
-
-### Laboratório de Backtest
-Valide se a estratégia está lucrando antes de gastar dinheiro real.
+1.  **🔮 Previsão:** Briefing diário + Gerador IA + Histórico.
+2.  **📊 Análise:** Padrões, Ciclos, Temporal e Conexões (Heatmap).
+3.  **🏗️ Montador:** Criação manual assistida por IA.
+4.  **🔢 Desdobrador:** Matrizes inteligentes e Fechamentos.
+5.  **🧪 Laboratório:** Backtesting financeiro de estratégias.
 
 ---
 
-⚠️ **Aviso Legal:** *Este software é uma ferramenta de análise estatística e educacional. Não garantimos lucros. Jogos de loteria envolvem risco de perda financeira. Jogue com responsabilidade.*
+⚠️ **Aviso Legal:** *Este software é uma ferramenta poderosa de análise estatística. Porém, loteria é um jogo de azar com viés negativo. Não garantimos lucro. Jogue com responsabilidade e apenas o que pode perder.*
