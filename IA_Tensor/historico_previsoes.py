@@ -1,3 +1,4 @@
+import sqlite3
 import json
 import os
 import hashlib
@@ -5,59 +6,121 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-FILE_PATH = "previsoes.json"
+DB_PATH = "previsoes.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS previsoes (
+        id TEXT PRIMARY KEY,
+        timestamp_geracao TEXT,
+        concurso_alvo INTEGER,
+        numeros TEXT,
+        score_ia REAL,
+        metrics_dna TEXT,
+        contexto_temporal TEXT,
+        status_conferencia TEXT,
+        acertos_futuros INTEGER
+    )
+    """)
+    
+    # Nova Tabela para Dados Exógenos (Data Lake Financeiro)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS historico_financeiro (
+        data TEXT,
+        ticker TEXT,
+        fechamento REAL,
+        variacao REAL,
+        PRIMARY KEY (data, ticker)
+    )
+    """)
+
+    # Nova Tabela de Espelhamento (Resultados Oficiais)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS resultados_oficiais (
+        rodada INTEGER PRIMARY KEY,
+        data TEXT,
+        numeros TEXT, -- JSON Array
+        soma INTEGER
+    )
+    """)
+    
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_concurso ON previsoes (concurso_alvo)")
+    conn.commit()
+    conn.close()
+
+def sincronizar_resultados(df):
+    """Espelha o rodadas.json para o SQLite (Tabela resultados_oficiais)."""
+    init_db() # Garante tabela criada
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Otimização: Pegar qual o último salvo para não tentar inserir tudo
+    try:
+        cursor.execute("SELECT MAX(rodada) FROM resultados_oficiais")
+        ultimo_salvo = cursor.fetchone()[0]
+    except:
+        ultimo_salvo = 0
+        
+    if ultimo_salvo is None: ultimo_salvo = 0
+    
+    # Filtrar apenas novos (assumindo que df tem coluna 'rodada')
+    # Se rodadas.json mudar indices, garantir que rodada é int
+    
+    # Performance: Se df é pequeno, itera. 
+    # Mas aqui vamos filtrar no Pandas primeiro.
+    novos = df[df['rodada'] > ultimo_salvo]
+    
+    if novos.empty:
+        conn.close()
+        return 0
+        
+    count = 0
+    for idx, row in novos.iterrows():
+        # Converter Numeros para JSON string
+        nums_json = json.dumps(row['numeros'])
+        # Garantir data string
+        data_str = pd.to_datetime(row['data']).strftime('%Y-%m-%d')
+        soma = int(sum(row['numeros']))
+        
+        cursor.execute("INSERT INTO resultados_oficiais (rodada, data, numeros, soma) VALUES (?, ?, ?, ?)", 
+                       (int(row['rodada']), data_str, nums_json, soma))
+        count += 1
+        
+    conn.commit()
+    conn.close()
+    return count
 
 def gerar_hash_sequencia(numeros, timestamp_str):
     """Gera um hash único para a sequência baseado nos números e momento."""
     raw = f"{sorted(numeros)}-{timestamp_str}"
     return hashlib.md5(raw.encode()).hexdigest()
 
-class NumpyEncoder(json.JSONEncoder):
-    """Encoder personalizado para resolver problemas de int64 do Numpy no JSON"""
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NumpyEncoder, self).default(obj)
-
 def salvar_previsoes_detalhadas(resultados, df_historico):
     """
-    Salva uma lista de previsões com metadados ricos em 'previsoes.json'.
-    Args:
-        resultados: Lista de dicts {'seq': [], 'score': 0, 'metrics': {}}
-        df_historico: DataFrame atual para contexto (último concurso).
+    Salva uma lista de previsões com metadados ricos em 'previsoes.db'.
     """
+    init_db()
     
-    # 1. Carregar base existente
-    if os.path.exists(FILE_PATH):
-        try:
-            with open(FILE_PATH, 'r') as f:
-                base_previsoes = json.load(f)
-        except:
-            base_previsoes = []
-    else:
-        base_previsoes = []
-
-    # 2. Contexto do Próximo Concurso (Estimado)
+    # 1. Contexto do Próximo Concurso (Estimado)
     if not df_historico.empty:
         ultimo_concurso = df_historico.iloc[-1]
         prox_rodada = int(ultimo_concurso['rodada']) + 1
-        
-        # Tenta estimar data do próximo (apenas heurística, pega data atual de geração)
         data_geracao = datetime.now()
     else:
         prox_rodada = 1
         data_geracao = datetime.now()
 
-    # 3. Processar cada previsão
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
     novos_registros = []
+    count_salvos = 0
     
     for item in resultados:
-        # CONVERSÃO CRÍTICA: Garantir tipos nativos do Python (evita erro JSON serializable com numpy)
-        seq = [int(n) for n in item['seq']] # Converte numpy.int64 para int
+        # CONVERSÃO CRÍTICA
+        seq = [int(n) for n in item['seq']] 
         metrics = {k: int(v) if isinstance(v, (int, np.integer)) else float(v) for k,v in item['metrics'].items()}
         score = float(item['score'])
         
@@ -69,140 +132,171 @@ def salvar_previsoes_detalhadas(resultados, df_historico):
         mapa_dias = {"Monday": "Segunda-feira", "Tuesday": "Terça-feira", "Wednesday": "Quarta-feira", "Thursday": "Quinta-feira", "Friday": "Sexta-feira", "Saturday": "Sábado", "Sunday": "Domingo"}
         dia_semana_pt = mapa_dias.get(dia_semana_en, dia_semana_en)
         
-        registro = {
-            "id": id_unico,
-            "timestamp_geracao": timestamp,
-            "concurso_alvo_estimado": int(prox_rodada), # Garante int puro
-            "numeros": seq,
-            "score_ia": score,
-            "metrics_dna": metrics,
-            "contexto_temporal": {
-                "dia_semana": dia_semana_pt,
-                "dia": int(data_geracao.day),
-                "mes": int(data_geracao.month),
-                "ano": int(data_geracao.year),
-                "dia_eh_par": bool(data_geracao.day % 2 == 0),
-                "semestre": 1 if data_geracao.month <= 6 else 2,
-                "trimestre": (data_geracao.month - 1) // 3 + 1
-            },
-            "status_conferencia": "pendente", # Será atualizado quando sair o resultado real
-            "acertos_futuros": None
+        contexto = {
+            "dia_semana": dia_semana_pt,
+            "dia": int(data_geracao.day),
+            "mes": int(data_geracao.month),
+            "ano": int(data_geracao.year),
+            "dia_eh_par": bool(data_geracao.day % 2 == 0),
+            "semestre": 1 if data_geracao.month <= 6 else 2,
+            "trimestre": (data_geracao.month - 1) // 3 + 1
         }
         
-        novos_registros.append(registro)
+        # Verificar duplicidade se necessário (o ID hash já previne, mas o INSERT OR IGNORE resolve)
+        try:
+            cursor.execute("""
+            INSERT OR IGNORE INTO previsoes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                id_unico,
+                timestamp,
+                prox_rodada,
+                json.dumps(seq),
+                score,
+                json.dumps(metrics),
+                json.dumps(contexto),
+                "pendente",
+                0
+            ))
+            if cursor.rowcount > 0:
+                count_salvos += 1
+        except Exception as e:
+            print(f"Erro ao salvar previsão {id_unico}: {e}")
+
+    conn.commit()
+    conn.close()
         
-    # 4. Salvar (Append)
-    base_previsoes.extend(novos_registros)
-    
-    with open(FILE_PATH, 'w') as f:
-        json.dump(base_previsoes, f, indent=4, cls=NumpyEncoder)
-        
-    return len(novos_registros)
+    return count_salvos
 
 def renderizar_historico_previsoes_tab():
     import streamlit as st
-    st.markdown("## 📜 Memória da IA (Histórico de Previsões)")
     
-    if not os.path.exists(FILE_PATH):
-        st.info("Nenhuma previsão salva ainda. Gere previsões na aba principal primeiro.")
+    st.markdown("## 📜 Memória da IA (Histórico de Previsões - SQLite)")
+    
+    if not os.path.exists(DB_PATH):
+        st.info("Nenhuma previsão salva ainda. As tabelas serão criadas no primeiro uso.")
         return
 
-    with open(FILE_PATH, 'r') as f:
-        data = json.load(f)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        query = "SELECT * FROM previsoes ORDER BY timestamp_geracao DESC"
+        df_prev = pd.read_sql_query(query, conn)
+    except:
+        st.info("Histórico vazio ou banco inexistente.")
+        conn.close()
+        return
+    conn.close()
     
-    if not data:
+    if df_prev.empty:
         st.info("Histórico vazio.")
         return
-        
-    # Converter para DF para facilitar visualização
-    df_prev = pd.DataFrame(data)
+
+    # Desserializar JSONs para exibição bonita se necessário, ou manter string para performance
+    # Vamos converter apenas o 'numeros' para lista real para exibir
+    df_prev['numeros_list'] = df_prev['numeros'].apply(json.loads)
     df_prev['data_visual'] = pd.to_datetime(df_prev['timestamp_geracao']).dt.strftime('%d/%m/%Y %H:%M')
     
     st.write(f"Total de palpites memorizados: {len(df_prev)}")
     
     # Mostrar os últimos 5
     st.markdown("### Últimas 5 Previsões Geradas")
-    for msg in df_prev.tail(5).iloc[::-1].to_dict('records'):
+    
+    # Iterar sobre os top 5 (já ordenado DESC na query)
+    for index, row in df_prev.head(5).iterrows():
         # Formatar status
-        if msg.get('status_conferencia') == 'conferido':
-            hits = msg.get('acertos_futuros', 0)
+        if row['status_conferencia'] == 'conferido':
+            hits = row['acertos_futuros']
             badge = f"✅ {hits} acertos" if hits >= 11 else f"❌ {hits} acertos"
         else:
             badge = "⏳ Pendente"
 
         st.markdown(f"""
-        **ID:** `{msg['id'][:8]}...` | 🎯 Alvo: **{msg['concurso_alvo_estimado']}** | {badge} | 📅 {msg['data_visual']}
-        <br>Numbers: **{msg['numeros']}** | Score IA: {msg['score_ia']}
+        **ID:** `{row['id'][:8]}...` | 🎯 Alvo: **{row['concurso_alvo']}** | {badge} | 📅 {row['data_visual']}
+        <br>Numbers: **{row['numeros_list']}** | Score IA: {row['score_ia']:.2f}
         """, unsafe_allow_html=True)
         st.markdown("---")
 
 def executar_retro_analise(df_historico):
     """
-    Verifica se os palpites passados já têm resultado oficial.
-    Se tiver > 20 palpites conferidos, gera insights de calibragem.
+    Verifica se os palpites passados ('pendente') já têm resultado oficial.
+    Atualiza o SQLite e gera relatório.
     """
-    if not os.path.exists(FILE_PATH): return None
+    if not os.path.exists(DB_PATH): return None
 
-    with open(FILE_PATH, 'r') as f:
-        previsoes = json.load(f)
-    
-    atualizou = False
-    conferidos_count = 0
-    total_acertos = 0
-    
     # Cache dos resultados oficiais para performance
     # Dict: {1234: {1, 2, ...}, 1235: {...}}
     gabaritos = {row['rodada']: set(row['numeros']) for _, row in df_historico.iterrows()}
-    max_concurso_oficial = df_historico['rodada'].max()
-
-    for p in previsoes:
-        if p.get('status_conferencia') == 'pendente':
-            alvo = p.get('concurso_alvo_estimado')
-            
-            # Se o concurso alvo já aconteceu (está na base)
-            if alvo in gabaritos:
-                oficial = gabaritos[alvo]
-                acertos = len(set(p['numeros']).intersection(oficial))
-                
-                p['status_conferencia'] = 'conferido'
-                p['acertos_futuros'] = acertos
-                atualizou = True
-            
-            # Heurística: Se o alvo é muito antigo (ex: alvo 3000, e já estamos no 3010), 
-            # e não achamos o 3000 na base (talvez gap de dados), marcamos como 'expirado' ou tentamos achar o mais proximo?
-            # Por enquanto, só conferimos exatos.
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row # Permite acesso por nome de coluna
+    cursor = conn.cursor()
+    
+    # Buscar apenas Pendentes
+    cursor.execute("SELECT id, concurso_alvo, numeros FROM previsoes WHERE status_conferencia = 'pendente'")
+    pendentes = cursor.fetchall()
+    
+    atualizou_count = 0
+    
+    for p in pendentes:
+        alvo = p['concurso_alvo']
         
-        if p.get('status_conferencia') == 'conferido':
-            conferidos_count += 1
-            total_acertos += p.get('acertos_futuros', 0)
-
-    if atualizou:
-        with open(FILE_PATH, 'w') as f:
-            json.dump(previsoes, f, indent=4)
+        # Se o concurso alvo já aconteceu
+        if alvo in gabaritos:
+            oficial = gabaritos[alvo]
+            numeros_apostados = set(json.loads(p['numeros']))
+            acertos = len(numeros_apostados.intersection(oficial))
             
+            # Update
+            cursor.execute("""
+            UPDATE previsoes 
+            SET status_conferencia = 'conferido', acertos_futuros = ? 
+            WHERE id = ?
+            """, (acertos, p['id']))
+            atualizou_count += 1
+            
+    conn.commit()
+    
     # --- GERAR RELATÓRIO DE AUTO-CALIBRAGEM ---
-    if conferidos_count < 20:
-        return f"Calibragem em andamento: {conferidos_count}/20 palpites conferidos."
+    # Query agregada para performance
+    cursor.execute("SELECT COUNT(*), AVG(acertos_futuros) FROM previsoes WHERE status_conferencia = 'conferido'")
+    res = cursor.fetchone()
+    conferidos_count = res[0]
+    media_acertos = res[1] if res[1] else 0
     
-    media_acertos = total_acertos / conferidos_count
+    relatorio = None
     
-    # Análise de Viés: Onde a IA acerta mais?
-    # Ex: Dias Pares vs Ímpares
-    acertos_pares = [p['acertos_futuros'] for p in previsoes if p.get('status_conferencia') == 'conferido' and p['contexto_temporal']['dia_eh_par']]
-    acertos_impares = [p['acertos_futuros'] for p in previsoes if p.get('status_conferencia') == 'conferido' and not p['contexto_temporal']['dia_eh_par']]
-    
-    media_par = sum(acertos_pares)/len(acertos_pares) if acertos_pares else 0
-    media_impar = sum(acertos_impares)/len(acertos_impares) if acertos_impares else 0
-    
-    melhor_dia = "S/D"
-    if media_par > media_impar * 1.05: melhor_dia = "Dias PARES"
-    elif media_impar > media_par * 1.05: melhor_dia = "Dias ÍMPARES"
-    else: melhor_dia = "Neutro"
+    if conferidos_count >= 20:
+        # Análise de Viés Complexa (precisa ler o JSON contexto)
+        # SQLite nativo não parseia JSON fácil em versões antigas. Vamos puxar para Python.
+        cursor.execute("SELECT acertos_futuros, contexto_temporal FROM previsoes WHERE status_conferencia = 'conferido'")
+        rows = cursor.fetchall()
+        
+        acertos_pares = []
+        acertos_impares = []
+        
+        for r in rows:
+            ctx = json.loads(r['contexto_temporal'])
+            hits = r['acertos_futuros']
+            if ctx.get('dia_eh_par'):
+                acertos_pares.append(hits)
+            else:
+                acertos_impares.append(hits)
+        
+        media_par = sum(acertos_pares)/len(acertos_pares) if acertos_pares else 0
+        media_impar = sum(acertos_impares)/len(acertos_impares) if acertos_impares else 0
+        
+        melhor_dia = "Neutro"
+        if media_par > media_impar * 1.05: melhor_dia = "Dias PARES"
+        elif media_impar > media_par * 1.05: melhor_dia = "Dias ÍMPARES"
 
-    return {
-        "msg": "✅ Retro-Análise Disponível",
-        "media_global": media_acertos,
-        "total_analisado": conferidos_count,
-        "vies_descoberto": f"A IA está performando melhor em **{melhor_dia}**.",
-        "detalhe": f"Média Pares: {media_par:.2f} | Média Ímpares: {media_impar:.2f}"
-    }
+        relatorio = {
+            "msg": "✅ Retro-Análise Disponível",
+            "media_global": media_acertos,
+            "total_analisado": conferidos_count,
+            "vies_descoberto": f"A IA está performando melhor em **{melhor_dia}**.",
+            "detalhe": f"Média Pares: {media_par:.2f} | Média Ímpares: {media_impar:.2f}"
+        }
+    else:
+        relatorio = f"Calibragem em andamento: {conferidos_count}/20 palpites conferidos."
+
+    conn.close()
+    return relatorio

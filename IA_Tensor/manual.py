@@ -61,6 +61,15 @@ def renderizar_manual_instrucoes():
 
     ---
 
+    ### 🌌 6. Aba "Caos Exógeno" (Inédito)
+    *   **Oráculo Financeiro & Natural:** Analisa correlações ocultas entre os sorteios e fatores externos.
+    *   **Heatmap:** Descubra se números específicos da loteria "gostam" quando a Bolsa sobe ou quando é Lua Cheia.
+    *   **Simulador:** Simule o cenário de hoje (ex: Dólar caiu) para ver quais números ganham força.
+    
+    > **Nota Técnica:** O sistema agora salva automaticamente todos os dados em um Banco de Dados ultrarrápido (`previsoes.db`) para aprender mais a cada dia.
+
+    ---
+
     ### 💡 Dicas de Ouro
     1.  **Não jogue apenas por jogar.** Olhe sempre as **Badges** e o **Radar**. Jogos equilibrados ganham mais.
     2.  **Use os Filtros:** Na barra lateral à esquerda, você pode "Obrigatório" (Fixar) números que você tem certeza que vão sair.

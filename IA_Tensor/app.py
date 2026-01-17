@@ -17,19 +17,21 @@ from ensemble import treinar_ensemble, prever_ensemble # Segundo Cérebro
 from analise_temporal import renderizar_analise_temporal
 from montador import renderizar_montador_manual
 from analise_conexoes import renderizar_mapa_conexoes
-from historico_previsoes import salvar_previsoes_detalhadas, executar_retro_analise
+from historico_previsoes import salvar_previsoes_detalhadas, renderizar_historico_previsoes_tab, executar_retro_analise, sincronizar_resultados
 from dashboard_resumo import renderizar_dashboard_resumo
 from analise_tendencias import renderizar_detector_tendencias 
 from ia_critica import analisar_riscos_jogo
 from visualizacao import plotar_radar_equilibrio
 from smart_clustering import renderizar_clusters
 from manual import renderizar_manual_instrucoes
+from caos_exogeno import renderizar_caos_exogeno
 
 
 # ... (rest of imports/functions) ...
 
 # Função para carregar e filtrar os dados por intervalo de datas
-def carregar_dados_json(caminho):
+def carregar_dados():
+    caminho = "rodadas.json"
     with open(caminho, 'r') as f:
         dados = json.load(f)
     df = pd.DataFrame(dados)
@@ -65,7 +67,7 @@ st.set_page_config(layout="wide", page_title="IA Lotofácil Pro") #tamanho da te
 st.title("IA - Previsão de Rodada")
 
 # Carregar dados inicialmente GLOBALMENTE
-df = carregar_dados_json("rodadas.json")
+df = carregar_dados()
 
 st.sidebar.header("Parâmetros")
 
@@ -111,7 +113,7 @@ with st.sidebar.expander("✅ Conferir Resultado & Treinar", expanded=False):
 usar_aprendizado = st.sidebar.checkbox("Usar aprendizado persistente", value=False)
 salvar_aprendizado = st.sidebar.checkbox("Salvar aprendizado após execução", value=False)
 
-tab_manual, tab_previsao, tab_analise, tab_montador, tab_desdobra, tab_lab = st.tabs(["📘 Manual", "🔮 Previsão", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório"])
+tab_manual, tab_previsao, tab_analise, tab_montador, tab_desdobra, tab_lab, tab_caos = st.tabs(["📘 Manual", "🔮 Previsão", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório", "🌌 Caos Exógeno"])
 
 # Filtrar dados para análise baseado no sidebar definido acima
 df_filtrado_analise = df[(df['data'] >= pd.to_datetime(data_inicial)) & (df['data'] <= pd.to_datetime(data_final))].reset_index(drop=True)
@@ -136,6 +138,9 @@ with tab_desdobra:
 
 with tab_lab:
     renderizar_tab_lab(df, int(n_dias))
+
+with tab_caos:
+    renderizar_caos_exogeno(df)
 
 with tab_previsao:
     # --- Feedback do Sistema (Persistente após Rerun) ---
@@ -481,6 +486,19 @@ with tab_previsao:
 
         except Exception as e:
             st.error(f"Erro: {str(e)}")
+
+    # Carregar dados
+    try:
+        df = carregar_dados()
+        
+        # --- Espelhamento para SQLite ---
+        f_sync = sincronizar_resultados(df)
+        if f_sync > 0:
+            st.toast(f"🔄 Banco de Dados: {f_sync} novos resultados sincronizados!", icon="💾")
+            
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        st.stop()
 
     # --- ÁREA DE VISUALIZAÇÃO DE RESULTADOS (PAGINADA) ---
     st.markdown("---")

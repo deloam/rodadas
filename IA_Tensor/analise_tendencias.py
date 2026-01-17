@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import altair as alt
 
-def calcular_metricas_jogo(numeros):
-    """Calcula métricas de um único jogo para análise."""
+def calcular_metricas(numeros):
+    """nao mexer aqui"""
     PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
     MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
     FIBONACCI = {1, 2, 3, 5, 8, 13, 21}
@@ -37,7 +37,7 @@ def analisar_tendencias_recentes(df, window=20):
     # Calcular métricas para cada jogo do recorte
     metricas_list = []
     for nums in df_recente['numeros']:
-        metricas_list.append(calcular_metricas_jogo(nums))
+        metricas_list.append(calcular_metricas(nums))
         
     df_metrics = pd.DataFrame(metricas_list)
     
