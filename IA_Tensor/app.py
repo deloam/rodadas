@@ -19,15 +19,12 @@ from montador import renderizar_montador_manual
 from analise_conexoes import renderizar_mapa_conexoes
 from historico_previsoes import salvar_previsoes_detalhadas, executar_retro_analise
 from dashboard_resumo import renderizar_dashboard_resumo
+from analise_tendencias import renderizar_detector_tendencias 
+from ia_critica import analisar_riscos_jogo
+from visualizacao import plotar_radar_equilibrio
+from smart_clustering import renderizar_clusters
+from manual import renderizar_manual_instrucoes
 
-# ... (rest of imports/functions) ...
-
-# ... (rest of imports/functions) ...
-
-# ... inside main logic ...
-# (Removed misplaced block)
-
-# ... (rest of imports/functions) ...
 
 # ... (rest of imports/functions) ...
 
@@ -64,6 +61,7 @@ def extrair_features(df, n_dias):
     df = preencher_frequencias(df, n_dias)
     return df
 
+st.set_page_config(layout="wide", page_title="IA Lotofácil Pro") #tamanho da tela
 st.title("IA - Previsão de Rodada")
 
 # Carregar dados inicialmente GLOBALMENTE
@@ -113,13 +111,18 @@ with st.sidebar.expander("✅ Conferir Resultado & Treinar", expanded=False):
 usar_aprendizado = st.sidebar.checkbox("Usar aprendizado persistente", value=False)
 salvar_aprendizado = st.sidebar.checkbox("Salvar aprendizado após execução", value=False)
 
-tab_previsao, tab_analise, tab_montador, tab_desdobra, tab_lab = st.tabs(["🔮 Previsão", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório"])
+tab_manual, tab_previsao, tab_analise, tab_montador, tab_desdobra, tab_lab = st.tabs(["📘 Manual", "🔮 Previsão", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório"])
 
 # Filtrar dados para análise baseado no sidebar definido acima
 df_filtrado_analise = df[(df['data'] >= pd.to_datetime(data_inicial)) & (df['data'] <= pd.to_datetime(data_final))].reset_index(drop=True)
 
+with tab_manual:
+    renderizar_manual_instrucoes()
+
 with tab_analise:
     # Passamos o DF completo para a função, pois ela agora tem filtros próprios
+    renderizar_detector_tendencias(df) # Nova Feature
+    renderizar_clusters(df)
     renderizar_analise_padroes(df)
     renderizar_ciclos(df)
     renderizar_analise_temporal(df)
@@ -335,33 +338,7 @@ with tab_previsao:
 
                 # Normalizar final
                 probabilidades = prob_final / np.sum(prob_final)
-
-                # --- HEATMAP VISUAL (Frio vs Quente) ---
-                st.markdown("### 🌡️ Mapa de Calor (Previsão da IA)")
-                
-                # Montar Grid 5x5
-                heatmap_data = []
-                for i in range(5):
-                    for j in range(5):
-                        num = i * 5 + j + 1
-                        prob = probabilidades[num-1]
-                        heatmap_data.append({'x': j, 'y': i, 'Número': num, 'Probabilidade': prob})
-                
-                df_heat = pd.DataFrame(heatmap_data)
-                
-                chart_heat = alt.Chart(df_heat).mark_rect().encode(
-                    x=alt.X('x:O', axis=None, scale=alt.Scale(padding=0.05)),
-                    y=alt.Y('y:O', axis=None, scale=alt.Scale(padding=0.05)),
-                    color=alt.Color('Probabilidade:Q', scale=alt.Scale(scheme='turbo'), legend=None),
-                    tooltip=['Número', alt.Tooltip('Probabilidade', format='.2%')]
-                ).properties(width=300, height=300)
-                
-                text_heat = chart_heat.mark_text().encode(
-                    text='Número:O',
-                    color=alt.value('black')
-                )
-                
-                st.altair_chart(chart_heat + text_heat, use_container_width=True)
+                st.session_state.probabilidades_ia = probabilidades
 
                 # === LÓGICA AVANÇADA DE GERAÇÃO E FILTRAGEM ===
                 resultados = []
@@ -394,7 +371,7 @@ with tab_previsao:
                             escolhidos.add(num)
                         tries += 1
                         
-                    # Fallback caso não consiga gerar (ex: muitos excluidos)
+                    # Fallback
                     if len(escolhidos) < qtd_numeros:
                         remaining = list(set(range(1,26)) - escolhidos - nums_excluidos)
                         if remaining:
@@ -403,8 +380,16 @@ with tab_previsao:
                     
                     seq = sorted(escolhidos)
                     
+                    # Calcular Confiança Média (IA) do Palpite
+                    # Soma das probabilidades individuais dos numeros escolhidos / qtd
+                    soma_probs = sum(probabilidades[n-1] for n in seq)
+                    confianca = (soma_probs / len(seq)) * 100 # Em % (Geralmente varia de 3% a 6% por numero, então 15 nums ~ 60% total? Não, é prob individual. Prob media de 0.04 -> 4%. Vamos normalizar relativo ao max possivel ou deixar bruto)
+                    # Melhor: A soma de TODAS as probs é 1.0. Média é 1/25 = 0.04.
+                    # Se eu escolho os top, a média sobe para > 0.04.
+                    # Vamos usar um fator de escala para ficar bonito visualmente (ex: x20 para virar score 0-100 relativo)
+                    confianca_score = min(confianca * 20, 100)
+
                     # Calcular Pontuação (Score de Equilíbrio)
-                    # Score Máximo Teórico: 8 + 4 (novos) = 12
                     score = 0
                     
                     # 1. Ímpares (Ideal: 7 a 9)
@@ -419,33 +404,34 @@ with tab_previsao:
                     
                     # 3. Repetentes do Anterior (Ideal: 8 a 10)
                     repetentes = len(set(seq).intersection(ultima_rodada))
-                    if 8 <= repetentes <= 10: score += 3 # Peso maior para repetentes
+                    if 8 <= repetentes <= 10: score += 3 
                     elif 7 <= repetentes <= 11: score += 1
                     
-                    # 4. Soma (Ideal: 180 a 220, aproximado para 15 numeros)
+                    # 4. Soma (Ideal: 180 a 220)
                     soma = sum(seq)
                     if 180 <= soma <= 220: score += 1
 
                     # 5. Moldura (Ideal: 8 a 11)
                     moldura = sum(1 for x in seq if x in MOLDURA)
-                    if 9 <= moldura <= 10: score += 2 # Ouro
+                    if 9 <= moldura <= 10: score += 2 
                     elif 8 <= moldura <= 11: score += 1
 
                     # 6. Fibonacci (Ideal: 3 a 5)
                     fibo = sum(1 for x in seq if x in FIBONACCI)
-                    if 4 == fibo: score += 2    # Ouro
+                    if 4 == fibo: score += 2    
                     elif 3 <= fibo <= 5: score += 1
                     
                     candidatos.append({
                         'seq': seq, 
-                        'score': score, 
+                        'score': score,
+                        'confianca': confianca_score, 
                         'metrics': {
                             'impares': impares, 'primos': primos, 
                             'moldura': moldura, 'fibo': fibo,
                             'repetentes': repetentes, 'soma': soma
                         }
                     })
-                
+
                 status_placeholder.empty()
 
                 # Ordenar pelos melhores scores
@@ -453,18 +439,14 @@ with tab_previsao:
                 
                 # SELECIONAR OS JOGOS FINAIS
                 if qtd_sequencias > 100:
-                    # Se usuário pediu muitos, prioriza a ELITE (Top Score Puro)
                     resultados = candidatos[:qtd_sequencias]
                 else:
-                    # Se pediu poucos (ex: 1 a 100), mistura um pouco do Top 25% para variabilidade
                     top_cut = max(len(candidatos) // 4, qtd_sequencias)
                     melhores_candidatos = candidatos[:top_cut]
-                    
                     indices_finais = np.random.choice(len(melhores_candidatos), qtd_sequencias, replace=False)
                     for idx in indices_finais:
                         resultados.append(melhores_candidatos[idx])
 
-                # Ordenar final por Score descendente
                 resultados.sort(key=lambda x: x['score'], reverse=True)
 
                 st.success(f"Previsões geradas com sucesso! (Selecionadas as melhores de {pool_size} simulações)")
@@ -496,14 +478,41 @@ with tab_previsao:
                     st.session_state.ultima_previsao = resultados[0]['seq']
                 
                 st.rerun()
-                
-                # (Visualização movida para fora do bloco de geração por performance)
 
         except Exception as e:
             st.error(f"Erro: {str(e)}")
 
     # --- ÁREA DE VISUALIZAÇÃO DE RESULTADOS (PAGINADA) ---
     st.markdown("---")
+
+    # --- HEATMAP PERSISTENTE ---
+    if 'probabilidades_ia' in st.session_state:
+        st.markdown("### 🌡️ Mapa de Calor (Previsão da IA)")
+        probs = st.session_state.probabilidades_ia
+        
+        # Montar Grid 5x5
+        heatmap_data = []
+        for i in range(5):
+            for j in range(5):
+                num = i * 5 + j + 1
+                prob = probs[num-1]
+                heatmap_data.append({'x': j, 'y': i, 'Número': num, 'Probabilidade': prob})
+        
+        df_heat = pd.DataFrame(heatmap_data)
+        
+        chart_heat = alt.Chart(df_heat).mark_rect().encode(
+            x=alt.X('x:O', axis=None, scale=alt.Scale(padding=0.05)),
+            y=alt.Y('y:O', axis=None, scale=alt.Scale(padding=0.05)),
+            color=alt.Color('Probabilidade:Q', scale=alt.Scale(scheme='turbo'), legend=None),
+            tooltip=['Número', alt.Tooltip('Probabilidade', format='.2%')]
+        ).properties(width=300, height=300)
+        
+        text_heat = chart_heat.mark_text().encode(
+            text='Número:O',
+            color=alt.value('black')
+        )
+        
+        st.altair_chart(chart_heat + text_heat, use_container_width=True)
     
     # Verifica se existem resultados na sessão (Memória Persistente)
     if 'resultados_ia' in st.session_state and st.session_state.resultados_ia:
@@ -547,6 +556,32 @@ with tab_previsao:
             r = item['seq']
             m = item['metrics']
             score = item['score']
+            conf = item.get('confianca', 0)
+            
+            # Badges Logic
+            def badge(label, val, ideal_min, ideal_max):
+                cor = "#2ecc71" if ideal_min <= val <= ideal_max else "#e74c3c" # Green or Red
+                icone = "✅" if ideal_min <= val <= ideal_max else "⚠️"
+                return f"<span style='background-color:{cor}20; color:{cor}; border:1px solid {cor}; padding:2px 6px; border-radius:4px; font-size:12px; margin-right:5px'>{icone} <b>{label}: {val}</b></span>"
+
+            badges_html = ""
+            badges_html += badge("Ímpares", m['impares'], 7, 9)
+            badges_html += badge("Primos", m['primos'], 4, 6)
+            badges_html += badge("Moldura", m['moldura'], 8, 11)
+            badges_html += badge("Fibo", m['fibo'], 3, 5)
+            badges_html += badge("Repetentes", m['repetentes'], 8, 10)
+            badges_html += f"<span style='color:#666; font-size:12px'> | Σ {m['soma']}</span>"
+
+            # Confiança Bar (Visual)
+            cor_conf = "#f1c40f" if conf < 70 else "#27ae60"
+            conf_html = f"""
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px">
+                <span style="font-size:12px; color:#555">🤖 Confiança IA:</span>
+                <div style="flex-grow:1; background:#eee; height:8px; border-radius:4px; max-width:100px;">
+                    <div style="width:{min(conf, 100)}%; background:{cor_conf}; height:100%; border-radius:4px;"></div>
+                </div>
+            </div>
+            """
             
             acertos_label = ""
             correta_set = set(sequencia_correta_auto) if sequencia_correta_auto is not None else None
@@ -556,7 +591,7 @@ with tab_previsao:
                 matches = set(r).intersection(correta_set)
                 acertos_cnt = len(matches)
                 cor_badge = "green" if acertos_cnt >= 11 else "#666"
-                acertos_label = f" <span style='background-color:{cor_badge}; color:white; padding:2px 6px; border-radius:4px; font-size:14px'>{acertos_cnt} ACERTOS</span>"
+                acertos_label = f" <span style='background-color:{cor_badge}; color:white; padding:2px 6px; border-radius:4px; font-size:14px; margin-left:10px'>{acertos_cnt} ACERTOS</span>"
                 
                 html_numeros = ' '.join([
                     f"<span style='color: white; background-color: {'#27ae60' if num in correta_set else '#c0392b'}; padding: 4px; margin: 2px; border-radius: 5px; display:inline-block; width:28px; text-align:center'>{num}</span>"
@@ -565,7 +600,24 @@ with tab_previsao:
             else:
                 html_numeros = ' '.join([f"<span style='color: white; background-color: #2980b9; padding: 4px; margin: 2px; border-radius: 5px; display:inline-block; width:28px; text-align:center'>{num}</span>" for num in r])
 
-            st.markdown(f"### #{real_index} <small>(Score: {score}/12){acertos_label}</small>", unsafe_allow_html=True)
+            st.markdown(f"### #{real_index} <small>(Score Equilíbrio: {score}/12)</small> {acertos_label}", unsafe_allow_html=True)
+            st.markdown(conf_html, unsafe_allow_html=True)
             st.markdown(html_numeros, unsafe_allow_html=True)
-            st.caption(f"DNA: Ímpares: {m.get('impares')} | Primos: {m.get('primos')} | Moldura: {m.get('moldura')} | Fibo: {m.get('fibo')}")
+            st.markdown(f"<div style='margin-top:5px'>{badges_html}</div>", unsafe_allow_html=True)
+            
+            # --- INTEGRAÇÃO: ADVOGADO DO DIABO (IA CRÍTICA) ---
+            alerts = analisar_riscos_jogo(r)
+            if alerts:
+                # Mostrar alertas críticos
+                for alert in alerts:
+                    st.markdown(f"<small style='color:#c0392b'>{alert}</small>", unsafe_allow_html=True)
+            
+            # --- INTEGRAÇÃO: RADAR VISUAL ---
+            with st.expander("🧐 Ver Análise Visual (Radar)", expanded=False):
+                c_radar, c_info = st.columns([1,2])
+                with c_radar:
+                    plotar_radar_equilibrio(m)
+                with c_info:
+                    st.caption("Este gráfico mostra o quão perto o jogo está da 'perfeição matemática' em cada critério. Barras verdes indicam equilíbrio total.")
+            
             st.markdown("---")

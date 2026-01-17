@@ -37,18 +37,26 @@ def renderizar_dashboard_resumo(df):
         common = c.most_common(3)
         top_hoje = [n for n, q in common]
         
-    # B. Análise de Ciclo (O que falta sair?)
-    # (Lógica simplificada do renderizar_ciclos)
-    todas_dezenas = set(range(1, 26))
+    # B. Análise de Ciclo (Lógica Forward Robusta - Sincronizada com analise_padroes)
+    df_sorted = df.sort_values('rodada')
     numeros_no_ciclo = set()
-    df_ciclo = df.sort_values('rodada', ascending=False)
     
-    for _, row in df_ciclo.iterrows():
+    # Simulação Forward
+    for _, row in df_sorted.iterrows():
         numeros_no_ciclo.update(row['numeros'])
-        if numeros_no_ciclo == todas_dezenas:
-            break
+        if len(numeros_no_ciclo) == 25:
+            numeros_no_ciclo.clear()
             
-    faltam_sair = list(todas_dezenas - numeros_no_ciclo) if numeros_no_ciclo != todas_dezenas else []
+    # Estado final
+    todas_dezenas = set(range(1, 26))
+    if not numeros_no_ciclo:
+        # Se vazio, ciclo acabou de fechar no último concurso
+        faltam_sair = []
+        is_novo_ciclo = True
+    else:
+        # Ciclo aberto
+        faltam_sair = list(todas_dezenas - numeros_no_ciclo)
+        is_novo_ciclo = False
     
     # --- RENDERIZAR O PAINEL ---
     
@@ -67,25 +75,31 @@ def renderizar_dashboard_resumo(df):
 
     with c2:
         st.markdown("**Status do Ciclo**")
-        if faltam_sair:
+        if is_novo_ciclo:
+             st.success("✅ **INÍCIO DE NOVO CICLO**")
+             st.caption("Ciclo fechou. Aposte na repetição de 8-10 dezenas anteriores.")
+        else:
             st.markdown(f"⚠️ **Faltam {len(faltam_sair)} nºs:**")
-            html = " ".join([f"<span style='color:#27ae60; font-weight:bold; background:#abebc6; padding:2px 6px; border-radius:4px'>{n:02d}</span>" for n in faltam_sair[:5]]) # Limit to 5
+            html = " ".join([f"<span style='color:#27ae60; font-weight:bold; background:#abebc6; padding:2px 6px; border-radius:4px'>{n:02d}</span>" for n in faltam_sair[:5]]) 
             if len(faltam_sair) > 5: html += " ..."
             st.markdown(html, unsafe_allow_html=True)
-        else:
-            st.success("✅ Ciclo Fechado (Tudo zerado)")
 
     with c3:
         st.markdown("**Recomendação IA**")
-        # Interseção Quentes + Faltam (Ouro)
-        recomendados = list(set(top_hoje).intersection(set(faltam_sair)))
-        if recomendados:
-            st.markdown(f"💎 **Aposte nestes:**")
-            html = " ".join([f"<span style='color:#fff; font-weight:bold; background:#8e44ad; padding:3px 8px; border-radius:4px'>{n:02d}</span>" for n in recomendados])
-            st.markdown(html, unsafe_allow_html=True)
-        elif faltam_sair:
-            st.caption(f"Foque nos que faltam para o ciclo.")
+        
+        if is_novo_ciclo:
+            st.info("💡 **Fase de Abertura:**")
+            st.caption("Distribua bem pares/ímpares. Não foque em atrasados agora.")
         else:
-            st.caption("Siga a intuição + IA Híbrida.")
+            # Interseção Quentes + Faltam
+            recomendados = list(set(top_hoje).intersection(set(faltam_sair)))
+            if recomendados:
+                st.markdown(f"💎 **Ouro (Quente + Falta):**")
+                html = " ".join([f"<span style='color:#fff; font-weight:bold; background:#8e44ad; padding:3px 8px; border-radius:4px'>{n:02d}</span>" for n in recomendados])
+                st.markdown(html, unsafe_allow_html=True)
+            elif faltam_sair:
+                st.caption(f"Prioridade total nos {len(faltam_sair)} números que faltam para fechar.")
+            else:
+                 st.caption("Siga a intuição + IA Híbrida.")
             
     st.markdown("---")

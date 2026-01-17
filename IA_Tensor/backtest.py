@@ -17,69 +17,84 @@ def calcular_premio(acertos):
 
 def executar_simulacao(df, n_dias, qtd_testes=5):
     """
-    Simula os últimos N concursos.
-    Retorna um DataFrame com os resultados e financeiro.
+    Simula os últimos testes usando uma heurística otimizada (Modo Rápido).
+    Nota: Não re-treina a Rede Neural profunda a cada passo para performance.
+    Usa um modelo estatístico avançado como proxy.
     """
     resultados_sim = []
     
     if len(df) < n_dias + qtd_testes:
         return pd.DataFrame()
         
+    prog_bar = st.progress(0)
+    
     for i in range(qtd_testes):
+        prog_bar.progress((i + 1) / qtd_testes)
+        
         idx_alvo = len(df) - qtd_testes + i
         row_alvo = df.iloc[idx_alvo]
         
         target_rodada = row_alvo['rodada']
         target_numeros = set(row_alvo['numeros'])
         
-        # --- MODELO IA ---
+        # --- MODELO PROXY (Simulação Rápida) ---
         df_treino = df.iloc[:idx_alvo].copy()
         
-        # Lógica Híbrida Simplificada
-        ultimos_10 = df_treino.tail(10)
+        # 1. Frequência Dinâmica nos últimos 15 jogos (Peso 60%)
+        ultimos_15 = df_treino.tail(15)
         freq_contador = Counter()
-        for nums in ultimos_10['numeros']:
+        for nums in ultimos_15['numeros']:
             freq_contador.update(nums)
         
         prob_freq = np.zeros(25)
         for num in range(1, 26):
-            prob_freq[num-1] = freq_contador.get(num, 0) / 10
-
+            prob_freq[num-1] = freq_contador.get(num, 0) / 15
+            
+        # 2. Atraso Inteligente (Peso 40%)
+        # Penaliza números muito atrasados (>10) pois tendem a continuar frios em tendências curtas
+        # Mas bonifica atrasos médios (reversão à média)
         prob_atraso = np.zeros(25)
         ultima_rodada_abs = df_treino['rodada'].max()
         for num in range(1, 26):
             ocorrencias = df_treino[df_treino['numeros'].apply(lambda x: num in x)]
             if not ocorrencias.empty:
                 atraso = ultima_rodada_abs - ocorrencias['rodada'].max()
-                prob_atraso[num-1] = min(atraso * 0.05, 0.5)
+                if atraso <= 2:
+                    val = 0.3 # Repetição recente (Hot)
+                elif 3 <= atraso <= 8:
+                    val = 0.5 # Zona de retorno provavel
+                else: 
+                    val = 0.2 # Muito frio
+                prob_atraso[num-1] = val
             else:
-                prob_atraso[num-1] = 0.5
+                prob_atraso[num-1] = 0.1 # Never seen
         
+        # Fusão
         prob_final = (prob_freq * 0.6) + (prob_atraso * 0.4)
-        prob_final = prob_final / np.sum(prob_final)
+        
+        # Adiciona ruído estocástico para simular variância da IA Generativa
+        ruido = np.random.normal(0, 0.05, 25)
+        prob_final += ruido
         
         top_indices = prob_final.argsort()[::-1][:15]
         palpite_ia = set(top_indices + 1)
         acertos_ia = len(palpite_ia.intersection(target_numeros))
         premio_ia = calcular_premio(acertos_ia)
         
-        # --- MODELO ALEATÓRIO (COMPARATIVO) ---
+        # --- MODELO ALEATÓRIO ---
         palpite_random = set(random.sample(range(1, 26), 15))
         acertos_random = len(palpite_random.intersection(target_numeros))
         
         resultados_sim.append({
             "Concurso": target_rodada,
             "Real": sorted(list(target_numeros)),
-            
-            # IA
             "IA_Palpite": sorted(list(palpite_ia)),
             "IA_Acertos": acertos_ia,
             "IA_Premio": premio_ia,
-            
-            # Aleatório
             "Random_Acertos": acertos_random
         })
         
+    prog_bar.empty()
     return pd.DataFrame(resultados_sim)
 
 def renderizar_tab_lab(df, n_dias):

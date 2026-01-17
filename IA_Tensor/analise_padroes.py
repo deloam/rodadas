@@ -289,53 +289,67 @@ def renderizar_analise_padroes(df):
 def renderizar_ciclos(df):
     """
     Analisa o Ciclo das Dezenas (tempo para sair todos os 25 números).
+    Usa lógica Forward para precisão e detecta início de novos ciclos.
     """
     st.markdown("---")
     st.markdown("## 🔄 Monitor de Ciclos")
     
-    numeros_sairam = set()
-    ciclo_atual = []
+    # Garantir ordenação
+    df = df.sort_values('rodada')
     
-    # Varre de trás pra frente
-    for i in range(len(df)-1, -1, -1):
-        numeros_rodada = set(df.iloc[i]['numeros'])
-        numeros_sairam.update(numeros_rodada)
-        ciclo_atual.append(df.iloc[i]['rodada'])
+    # Lógica Forward (Do início ao fim) para determinar estado atual
+    numeros_no_ciclo = set()
+    ultimo_fechamento = -1
+    
+    # Percorrer todo o histórico para simular os ciclos reais
+    for i, row in df.iterrows():
+        numeros = set(row['numeros'])
+        numeros_no_ciclo.update(numeros)
         
-        if len(numeros_sairam) == 25:
-            # Ciclo fechou aqui (ou antes). Este é o ultimo concurso do ciclo anterior.
-            # O ciclo atual começou NO PRÓXIMO (i+1).
-            break
+        if len(numeros_no_ciclo) == 25:
+            # Ciclo fechou nesta rodada
+            numeros_no_ciclo.clear()
+            ultimo_fechamento = row['rodada']
             
-    # Se o loop terminar e len < 25, estamos num ciclo aberto desde o início da base (improvável)
-    # Mas a lógica acima para no PRIMEIRO fechamento olhando para trás.
+    # Estado Atual
+    # Se numeros_no_ciclo estiver vazio, significa que o ultimo sorteio fechou o ciclo.
+    # Logo, estamos iniciando um NOVO ciclo.
     
-    # Recalcular o ciclo atual exato (aberto)
-    # A variável 'i' parou no concurso que FECHOU o ciclo anterior.
-    # Então o ciclo atual vai de i+1 até o fim.
-    
-    inicio_ciclo_idx = i + 1
-    df_ciclo = df.iloc[inicio_ciclo_idx:]
-    
-    # Números que saíram neste ciclo aberto
-    sairam_ciclo = set()
-    for nums in df_ciclo['numeros']:
-        sairam_ciclo.update(nums)
-        
     todos = set(range(1, 26))
-    faltam_sair = sorted(list(todos - sairam_ciclo))
+    sairam = numeros_no_ciclo
+    faltam_sair = sorted(list(todos - sairam))
     
-    # Visualização
+    # Determinar se ciclo fechou no último (novo ciclo iniciando agora)
+    # Se len(sairam) == 0, então o ciclo fechou no último processado.
+    ciclo_fechado_ultimo = (len(sairam) == 0)
+    
     c1, c2 = st.columns([1, 2])
-    with c1:
-        st.metric("Tamanho do Ciclo Atual", f"{len(df_ciclo)} concursos")
-    with c2:
-        if not faltam_sair:
-            st.success("✅ O Ciclo FECHOU no último concurso!")
-        else:
-            st.warning(f"⚠️ Faltam {len(faltam_sair)} números para fechar o ciclo.")
     
-    if faltam_sair:
+    if ciclo_fechado_ultimo:
+        # Calcular tamanho do ciclo que ACABOU de fechar (apenas para info)
+        # Mas o foco é o NOVO.
+        with c1:
+             st.metric("Ciclo Atual", "INICIANDO (0)")
+        with c2:
+             st.success("✅ O Ciclo FECHOU no último concurso! Um NOVO CICLO se inicia na próxima rodada.")
+             st.info("ℹ️ Dica de Início: Em aberturas de ciclo, é comum haver repetição de 8 a 10 números do sorteio anterior e um equilíbrio renovado.")
+             
+        st.markdown("### 🔥 Dica para Novo Ciclo")
+        st.caption("Como o ciclo reiniciou, todos os 25 números estão disponíveis. Não há 'faltantes' para forçar.")
+        
+    else:
+        # Calcular tamanho do ciclo atual em andamento
+        # Filtra rodadas APÓS o ultimo fechamento
+        if ultimo_fechamento == -1:
+            tamanho = len(df)
+        else:
+            tamanho = len(df[df['rodada'] > ultimo_fechamento])
+
+        with c1:
+            st.metric("Ciclo Atual (Andamento)", f"{tamanho} rodadas")
+        with c2:
+            st.warning(f"⚠️ Faltam {len(faltam_sair)} números para fechar o ciclo.")
+            
         st.markdown("### 🔥 Palpite Quente (Para Fechar Ciclo):")
         st.markdown(
             ' '.join([f"<span style='color: white; background-color: #e67e22; padding: 5px 10px; margin: 3px; border-radius: 5px; font-weight: bold; font-size: 18px; display: inline-block'>{num}</span>" for num in faltam_sair]),
@@ -353,7 +367,8 @@ def renderizar_ciclos(df):
     
     import altair as alt
 
-    st.markdown("#### 🏆 Frequência Individual dos Números")
+    st.markdown("---")
+    st.markdown("#### 🏆 Frequência Individual dos Números (Geral)")
     
     chart = alt.Chart(df_isolados).mark_bar().encode(
         x=alt.X('Número:O', axis=alt.Axis(labelAngle=0), sort='-y'),
