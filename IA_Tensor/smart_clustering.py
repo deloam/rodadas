@@ -27,7 +27,7 @@ def extrair_metricas_avancadas(numeros):
     
     return [soma, impares, primos, moldura, std_dev, iqr]
 
-@st.cache_resource
+@st.cache_data
 def treinar_modelo_clusters(df_completo):
     """
     Treina o KMeans com todo o histórico para encontrar os arquétipos (famílias) de jogos.

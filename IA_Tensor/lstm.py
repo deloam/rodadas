@@ -22,11 +22,19 @@ def preparar_dados(df, intervalo=30):
     return np.array(entradas), np.array(saidas)
 
 def treinar_modelo(X, y):
-    modelo = Sequential()
-    modelo.add(LSTM(64, input_shape=(X.shape[1], X.shape[2]), return_sequences=False))
-    modelo.add(Dense(25, activation='sigmoid'))  # 25 números possíveis
-    modelo.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    modelo.fit(X, y, epochs=30, batch_size=16, verbose=0)
+    import tensorflow as tf
+    from keras.layers import Input
+    
+    # Forçar CPU para modelos pequenos (evita overhead do Metal e travamentos no Mac)
+    with tf.device('/CPU:0'):
+        modelo = Sequential()
+        modelo.add(Input(shape=(X.shape[1], X.shape[2])))
+        modelo.add(LSTM(16, return_sequences=False))
+        modelo.add(Dense(25, activation='sigmoid'))
+        modelo.compile(optimizer='adam', loss='binary_crossentropy')
+        
+        # Treino ultra rápido
+        modelo.fit(X, y, epochs=5, batch_size=64, verbose=0)
     return modelo
 
 def prever_proxima_rodada(modelo, entrada, qtd_numeros=15):

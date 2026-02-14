@@ -35,8 +35,8 @@ def baixar_dados_financeiros(data_inicio, data_fim):
     try:
         dados = yf.download(real_tickers, start=data_inicio, end=data_fim, progress=False)['Close']
         
-        # Calcular Retorno Diário (%)
-        retornos = dados.pct_change() * 100 # Em porcentagem
+        # Calcular Retorno Diário (%) e evitar FutureWarning
+        retornos = dados.ffill().pct_change() * 100 # Em porcentagem
         retornos.index = pd.to_datetime(retornos.index).tz_localize(None) # Remove timezone para compatibilidade
         dados.index = pd.to_datetime(dados.index).tz_localize(None)
         
@@ -168,12 +168,17 @@ def calcular_correlacao_exogena(df_final):
     
     for ativo in cols_ativos:
         for num_col in cols_numeros:
-            # Correlação de Ponto Biserial (Variavel Continua vs Binaria)
-            # Mas Pearson funciona bem como aproximação
-            corr = df_final[ativo].corr(df_final[num_col])
+            # Correlação (Pearson) - Ignorar se não houver variação (std=0 ou NaN)
+            std_ativo = df_final[ativo].std()
+            std_num = df_final[num_col].std()
+            
+            if pd.isna(std_ativo) or std_ativo == 0 or pd.isna(std_num) or std_num == 0:
+                corr = np.nan
+            else:
+                corr = df_final[ativo].corr(df_final[num_col])
             
             # Se correlação for NaN (sem variância), ignora
-            if not np.isnan(corr):
+            if not pd.isna(corr):
                 correlacoes.append({
                     'Ativo': [k for k, v in TICKERS.items() if v == ativo][0], # Nome legível
                     'Dezena': int(num_col.split('_')[1]),

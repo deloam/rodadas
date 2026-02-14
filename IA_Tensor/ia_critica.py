@@ -54,4 +54,4 @@ def analisar_riscos_jogo(numeros):
     if linhas_vazias >= 2:
         riscos.append("⚠️ Duas ou mais linhas inteiras vazias.")
         
-    return risks if 'risks' in locals() else riscos
+    return riscos

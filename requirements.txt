@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+scikit-learn
+altair
+requests
+joblib
+yfinance
+beautifulsoup4
+tensorflow
+keras
+watchdog

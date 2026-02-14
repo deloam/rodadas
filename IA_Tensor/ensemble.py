@@ -61,6 +61,9 @@ def treinar_ensemble(df):
     """Treina um Random Forest para prever probabilidades."""
     print("Treinando Ensemble (Random Forest)...")
     X, y = preparar_dados_ensemble(df)
+    if len(X) == 0:
+        # Fallback para evitar erro se houver poucos dados
+        return None
     
     # Modelo: MultiOutput Regressor com Random Forest
     # Usamos Regressor porque queremos "probabilidade" de sair (0.0 a 1.0)
