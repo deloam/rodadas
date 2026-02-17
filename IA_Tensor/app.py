@@ -26,6 +26,8 @@ from smart_clustering import renderizar_clusters
 from manual import renderizar_manual_instrucoes
 from caos_exogeno import renderizar_caos_exogeno
 from engine import AIEngine
+from evolutiva import renderizar_tab_evolutiva
+
 
 
 # ... (rest of imports/functions) ...
@@ -128,13 +130,18 @@ with st.sidebar.expander("✅ Conferir Resultado & Treinar", expanded=False):
 usar_aprendizado = st.sidebar.checkbox("Usar aprendizado persistente", value=False)
 salvar_aprendizado = st.sidebar.checkbox("Salvar aprendizado após execução", value=False)
 
-tab_manual, tab_previsao, tab_analise, tab_montador, tab_desdobra, tab_lab, tab_caos = st.tabs(["📘 Manual", "🔮 Previsão", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório", "🌌 Caos Exógeno"])
+tab_manual, tab_previsao, tab_evolutiva, tab_analise, tab_montador, tab_desdobra, tab_lab, tab_caos = st.tabs(["📘 Manual", "🔮 Previsão", "🧬 IA Evolutiva", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório", "🌌 Caos Exógeno"])
+
 
 # Filtrar dados para análise baseado no sidebar definido acima
 df_filtrado_analise = df[(df['data'] >= pd.to_datetime(data_inicial)) & (df['data'] <= pd.to_datetime(data_final))].reset_index(drop=True)
 
 with tab_manual:
     renderizar_manual_instrucoes()
+
+with tab_evolutiva:
+    renderizar_tab_evolutiva(df)
+
 
 with tab_analise:
     # Passamos o DF completo para a função, pois ela agora tem filtros próprios
