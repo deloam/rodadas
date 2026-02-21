@@ -3,6 +3,8 @@ import pandas as pd
 from itertools import combinations
 from collections import Counter, defaultdict
 import streamlit as st
+from core.utils import calcular_metricas_dna
+
 
 def analisar_recorrencias(df):
     """
@@ -116,7 +118,7 @@ def renderizar_analise_padroes(df):
                 label = f"✅ {num}" if num in st.session_state.numeros_selecionados else f"{num}"
                 type_btn = "primary" if num in st.session_state.numeros_selecionados else "secondary"
                 
-                if st.button(label, key=f"btn_volante_{num}", use_container_width=True, type=type_btn):
+                if st.button(label, key=f"btn_volante_{num}", width='stretch', type=type_btn):
                     toggle_numero(num)
                     st.rerun()
 
@@ -187,7 +189,7 @@ def renderizar_analise_padroes(df):
             with st.expander("Ver detalhes dos concursos"):
                 df_detalhe = pd.DataFrame(rodadas_encontradas)[['rodada', 'data', 'numeros']]
                 df_detalhe['data'] = df_detalhe['data'].dt.strftime('%d/%m/%Y')
-                st.dataframe(df_detalhe, hide_index=True, use_container_width=True)
+                st.dataframe(df_detalhe, hide_index=True, width='stretch')
 
 
     # --- Seção de Métricas de Equilíbrio (NOVO) ---
@@ -195,16 +197,15 @@ def renderizar_analise_padroes(df):
     st.markdown("### ⚖️ Métricas de Equilíbrio (DNA do Jogo)")
     st.caption("Distribuição estatística dos resultados no período selecionado. Jogos equilibrados tendem a seguir estas médias.")
 
-    # Definições
-    PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-    
     # Processamento dos Dados
     dados_equilibrio = []
     for numeros in df_filtrado['numeros']:
-        impares = sum(1 for n in numeros if n % 2 != 0)
-        primos = sum(1 for n in numeros if n in PRIMOS)
-        soma = sum(numeros)
-        dados_equilibrio.append({'Impares': impares, 'Primos': primos, 'Soma': soma})
+        metricas = calcular_metricas_dna(numeros)
+        dados_equilibrio.append({
+            'Impares': metricas['impares'],
+            'Primos': metricas['primos'],
+            'Soma': metricas['soma']
+        })
     
     df_eq = pd.DataFrame(dados_equilibrio)
     
@@ -222,7 +223,7 @@ def renderizar_analise_padroes(df):
             y='Ocorrências:Q',
             tooltip=['Qtd', 'Ocorrências']
         )
-        st.altair_chart(c1, use_container_width=True)
+        st.altair_chart(c1, width='stretch')
         st.caption("Faixa ideal: 7 a 9 ímpares.")
 
     with col_eq2:
@@ -235,7 +236,7 @@ def renderizar_analise_padroes(df):
             y='Ocorrências:Q',
             tooltip=['Qtd', 'Ocorrências']
         )
-        st.altair_chart(c2, use_container_width=True)
+        st.altair_chart(c2, width='stretch')
         st.caption("Faixa ideal: 4 a 6 primos.")
 
     with col_eq3:
@@ -246,7 +247,7 @@ def renderizar_analise_padroes(df):
             y='count()',
             tooltip=['count()']
         )
-        st.altair_chart(c3, use_container_width=True)
+        st.altair_chart(c3, width='stretch')
         st.caption(f"Média do período: {df_eq['Soma'].mean():.1f}")
 
     st.markdown("---")
@@ -261,13 +262,13 @@ def renderizar_analise_padroes(df):
         try:
             st.dataframe(
                 df_pares.head(20).style.background_gradient(cmap="Reds"),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
         except ImportError:
             st.dataframe(
                 df_pares.head(20),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
 
@@ -276,13 +277,13 @@ def renderizar_analise_padroes(df):
         try:
             st.dataframe(
                 df_trios.head(20).style.background_gradient(cmap="Reds"),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
         except ImportError:
             st.dataframe(
                 df_trios.head(20),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
 
@@ -376,4 +377,4 @@ def renderizar_ciclos(df):
         tooltip=['Número', 'Frequência']
     )
     
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width='stretch')

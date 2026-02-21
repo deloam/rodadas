@@ -27,7 +27,7 @@ def renderizar_montador_manual(df):
             # Label com indicador visual
             label = f"🟢 {i:02d}" if is_selected else f"{i:02d}"
             
-            if st.button(label, key=f"btn_montador_{i}", use_container_width=True):
+            if st.button(label, key=f"btn_montador_{i}", width='stretch'):
                 if is_selected:
                     st.session_state.montador_selecionados.remove(i)
                 else:
@@ -67,51 +67,27 @@ def renderizar_montador_manual(df):
     with c2:
         st.subheader("📊 Auditoria (DNA)")
         
-        # Constantes
-        PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-        MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
-        FIBONACCI = {1, 2, 3, 5, 8, 13, 21}
-        
-        # Cálculos (baseados em 15 numeros para 'Ideal', ajusta proporcional se for >15?)
-        # Vamos auditar como se fosse um jogo de 15. Se for <15 ou >15, avisamos.
-        
-        impares = sum(1 for x in selecionados if x % 2 != 0)
-        primos = sum(1 for x in selecionados if x in PRIMOS)
-        moldura = sum(1 for x in selecionados if x in MOLDURA)
-        fibo = sum(1 for x in selecionados if x in FIBONACCI)
-        soma = sum(selecionados)
-        
-        # Último concurso para comparar repetentes
-        ultima_rodada = set(df.iloc[-1]['numeros'])
-        repetentes = len(set(selecionados).intersection(ultima_rodada))
-
-        # Helper de validação visual
-        def indicador(valor, ideal_min, ideal_max, label):
-            status = "✅" if ideal_min <= valor <= ideal_max else "⚠️"
-            st.markdown(f"**{label}:** {valor} {status} <small>(Ideal: {ideal_min}-{ideal_max})</small>", unsafe_allow_html=True)
+        from core.utils import avaliar_qualidade_jogo
         
         # Só mostra validação se tiver entre 15 e 18 numeros (foco principal)
         if 15 <= qtd <= 18:
-            indicador(impares, 7, 9, "Ímpares")
-            indicador(primos, 4, 6, "Primos")
-            indicador(moldura, 8, 11, "Moldura")
-            indicador(fibo, 3, 5, "Fibonacci")
-            indicador(repetentes, 8, 10, "Repetentes")
-            indicador(soma, 180, 220, "Soma")
+            score, m = avaliar_qualidade_jogo(selecionados, ultima_rodada)
             
-            # Análise Final da IA
-            score = 0
-            if 7 <= impares <= 9: score += 1
-            if 4 <= primos <= 6: score += 1
-            if 8 <= moldura <= 11: score += 1
-            if 3 <= fibo <= 5: score += 1
-            if 8 <= repetentes <= 10: score += 1
+            indicador(m['impares'], 7, 9, "Ímpares")
+            indicador(m['primos'], 4, 6, "Primos")
+            indicador(m['moldura'], 8, 11, "Moldura")
+            indicador(m['fibo'], 3, 5, "Fibonacci")
+            indicador(m['repetentes'], 8, 10, "Repetentes")
+            indicador(m['soma'], 180, 220, "Soma")
+            
+            # Ajuste da escala de score para 0-5 (função retorna 0-10)
+            score_ajustado = min(5, score // 2)
             
             st.markdown("---")
-            st.write(f"**Qualidade Estatística:** {score}/5")
-            if score == 5:
+            st.write(f"**Qualidade Estatística:** {score_ajustado}/5")
+            if score_ajustado == 5:
                 st.success("🌟 JOGO PERFEITO PADRÃO!")
-            elif score >= 3:
+            elif score_ajustado >= 3:
                 st.info("👍 Jogo Equilibrado")
             else:
                 st.warning("👎 Jogo Fora dos Padrões")

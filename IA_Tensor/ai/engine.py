@@ -3,17 +3,18 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 import os
-from lstm import preparar_dados, treinar_modelo
-from ensemble import treinar_ensemble, prever_ensemble
+from ai.lstm import preparar_dados, treinar_modelo
+from ai.ensemble import treinar_ensemble, prever_ensemble
 from keras.models import load_model
 
 class AIEngine:
     def __init__(self, df_historico, n_dias=30):
         self.df = df_historico
         self.n_dias = n_dias
-        self.PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-        self.MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
-        self.FIBONACCI = {1, 2, 3, 5, 8, 13, 21}
+        from core.constants import PRIMOS, MOLDURA, FIBONACCI
+        self.PRIMOS = PRIMOS
+        self.MOLDURA = MOLDURA
+        self.FIBONACCI = FIBONACCI
 
     def extrair_features(self, df):
         df = df.copy()
@@ -135,37 +136,12 @@ class AIEngine:
             soma_probs = sum(probabilidades[n-1] for n in seq)
             confianca = min(soma_probs * 20 * 100 / qtd_numeros, 100)
             
-            # Scoring de Equilíbrio
-            score = 0
-            impares = sum(1 for x in seq if x % 2 != 0)
-            if 7 <= impares <= 9: score += 2
-            elif 6 <= impares <= 10: score += 1
-            
-            primos = sum(1 for x in seq if x in self.PRIMOS)
-            if 4 <= primos <= 6: score += 2
-            elif 3 <= primos <= 7: score += 1
-            
-            repetentes = len(set(seq).intersection(ultima_rodada))
-            if 8 <= repetentes <= 10: score += 3 
-            elif 7 <= repetentes <= 11: score += 1
-            
-            soma = sum(seq)
-            if 180 <= soma <= 220: score += 1
-            
-            moldura = sum(1 for x in seq if x in self.MOLDURA)
-            if 9 <= moldura <= 10: score += 2 
-            elif 8 <= moldura <= 11: score += 1
-            
-            fibo = sum(1 for x in seq if x in self.FIBONACCI)
-            if 4 == fibo: score += 2    
-            elif 3 <= fibo <= 5: score += 1
+            from core.utils import avaliar_qualidade_jogo
+            score, m = avaliar_qualidade_jogo(seq, ultima_rodada)
             
             candidatos.append({
                 'seq': seq, 'score': score, 'confianca': confianca, 
-                'metrics': {
-                    'impares': impares, 'primos': primos, 'moldura': moldura, 
-                    'fibo': fibo, 'repetentes': repetentes, 'soma': soma
-                }
+                'metrics': m
             })
             
         candidatos.sort(key=lambda x: x['score'], reverse=True)

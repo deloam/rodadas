@@ -74,7 +74,7 @@ def renderizar_mapa_conexoes(df):
             width=600,
             height=600
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width='stretch')
 
     # --- TOP AMIGOS E INIMIGOS ---
     df_conexoes = pd.DataFrame(conexoes_list)

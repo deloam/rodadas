@@ -10,31 +10,28 @@ def extrair_metricas_avancadas(numeros):
     Retorna vetor de features para clusterização:
     [Soma, Ímpares, Primos, Moldura, Desvio Padrão, Amplitude Interquartil]
     """
-    numeros = np.array(sorted(numeros))
+    from core.utils import calcular_metricas_dna
+    nums = sorted(list(numeros))
+    m = calcular_metricas_dna(nums)
+    soma = m['soma']
+    imp = m['impares']
+    pri = m['primos']
+    mol = m['moldura']
     
-    PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-    MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
+    # Métricas de dispersão (distribuição no volante)
+    std = np.std(nums)
+    iqr = np.percentile(nums, 75) - np.percentile(nums, 25)
     
-    soma = np.sum(numeros)
-    impares = np.sum(numeros % 2 != 0)
-    primos = sum(1 for x in numeros if x in PRIMOS)
-    moldura = sum(1 for x in numeros if x in MOLDURA)
-    std_dev = np.std(numeros) # Espalhamento
-    
-    # Q3 - Q1 (Concentração do miolo do jogo)
-    q75, q25 = np.percentile(numeros, [75 ,25])
-    iqr = q75 - q25
-    
-    return [soma, impares, primos, moldura, std_dev, iqr]
+    return [soma, imp, pri, mol, std, iqr]
 
 @st.cache_data
-def treinar_modelo_clusters(df_completo):
+def treinar_modelo_clusters(numeros_historico):
     """
     Treina o KMeans com todo o histórico para encontrar os arquétipos (famílias) de jogos.
     """
     # Preparar Dataset
     X = []
-    for nums in df_completo['numeros']:
+    for nums in numeros_historico:
         X.append(extrair_metricas_avancadas(nums))
     
     X = np.array(X)
@@ -55,8 +52,10 @@ def treinar_modelo_clusters(df_completo):
     familias = {}
     familias_detalhes = {}
     for i, center in enumerate(centers):
-        soma_media = center[0]
-        imp_media = center[1]
+        soma_media = round(center[0])
+        imp_media = round(center[1])
+        primos_media = round(center[2])
+        moldura_media = round(center[3])
         
         # Naming Logic simples
         nome = f"Família {i+1}"
@@ -66,15 +65,15 @@ def treinar_modelo_clusters(df_completo):
         elif soma_media > 210: desc.append("Altos")
         else: desc.append("Equilibrados")
         
-        if imp_media > 8.5: desc.append("Ímpares+")
-        elif imp_media < 6.5: desc.append("Pares+")
+        if imp_media >= 9: desc.append("Ímpares+")
+        elif imp_media <= 6: desc.append("Pares+")
         
         familias[i] = f"{nome} ({'/'.join(desc)})"
         
         # Detalhamento rico para legenda
-        detalhe = f"**{familias[i]}**: Jogos com Soma média de **{int(soma_media)}** e cerca de **{imp_media:.1f}** Ímpares. "
-        if center[2] > 5.5: detalhe += "Tendência a ter muitos Primos. "
-        if center[3] > 10.5: detalhe += "Muitos números na Moldura. "
+        detalhe = f"**{familias[i]}**: Jogos com Soma média de **{soma_media}** e cerca de **{imp_media}** Ímpares. "
+        if primos_media >= 6: detalhe += f"Tendência a ter cerca de {primos_media} Primos. "
+        if moldura_media >= 11: detalhe += f"Destaque para {moldura_media} números na Moldura. "
         familias_detalhes[i] = detalhe
         
     return kmeans, scaler, X, familias, familias_detalhes
@@ -87,7 +86,9 @@ def renderizar_clusters(df):
         st.warning("Poucos dados para clusterização robusta.")
         return
 
-    model, scaler, X_raw, nomes_familias, detalhes_familias = treinar_modelo_clusters(df)
+    # Converter 'numeros' para tupla de tuplas para ser hashable pelo st.cache_data
+    numeros_tuple = tuple(tuple(x) for x in df['numeros'])
+    model, scaler, X_raw, nomes_familias, detalhes_familias = treinar_modelo_clusters(numeros_tuple)
     
     # Prever clusters para o histórico
     X_scaled = scaler.transform(X_raw)
@@ -149,13 +150,13 @@ def renderizar_clusters(df):
             height=300
         ).interactive()
         
-        st.altair_chart(scatter, use_container_width=True)
+        st.altair_chart(scatter, width='stretch')
         
     with c2:
         st.info(f"📍 **O Último Sorteio**  pertence à **{nomes_familias[cluster_ultimo]}**.")
         st.markdown("**Tendência Recente (Últimos 20):**")
         recents = df_clusters.tail(20)['nome_familia'].value_counts()
-        st.dataframe(recents, use_container_width=True)
+        st.dataframe(recents, width='stretch')
 
     # Legenda Detalhada
     with st.expander("📖 Dicionário das Famílias (Entenda cada Grupo)", expanded=False):
@@ -166,6 +167,22 @@ def renderizar_clusters(df):
     st.markdown("### 📅 Sazonalidade das Famílias")
     st.caption("Descubra se certas famílias de jogos preferem dias específicos, estações ou períodos do ano.")
 
+    # Filtro de Janela de Tempo
+    min_year = int(df_clusters['data'].dt.year.min())
+    max_year = int(df_clusters['data'].dt.year.max())
+    
+    col_t1, col_t2 = st.columns([2, 1])
+    year_range = col_t1.slider("Janela de Análise (Anos):", min_year, max_year, (min_year, max_year))
+    
+    # Aplicar Filtro de Tempo
+    df_sazonal = df_clusters[
+        (df_clusters['data'].dt.year >= year_range[0]) & 
+        (df_clusters['data'].dt.year <= year_range[1])
+    ].copy()
+
+    if len(df_sazonal) < 20:
+        st.warning(f"⚠️ Atenção: Apenas {len(df_sazonal)} jogos encontrados no período de {year_range[0]} a {year_range[1]}. Os resultados podem não ser estatisticamente confiáveis. Tente ampliar a janela.")
+    
     tipo_analise = st.radio(
         "Agrupar por:",
         ["Dia da Semana", "Estação do Ano", "Par/Ímpar (Dia)", "Mês", "Trimestre", "Ano"],
@@ -183,17 +200,47 @@ def renderizar_clusters(df):
 
     col_tempo = mapa_coluna[tipo_analise]
 
-    # Gráfico de Barras Empilhadas Normalizado (100%) para ver a PREDILEÇÃO
-    chart_temporal = alt.Chart(df_clusters).mark_bar().encode(
-        x=alt.X(col_tempo, title=tipo_analise),
-        y=alt.Y('count()', stack='normalize', axis=alt.Axis(format='%', title='Proporção (%)')),
-        color=alt.Color('nome_familia', legend=alt.Legend(title="Família")),
-        tooltip=[col_tempo, 'nome_familia', alt.Tooltip('count()', title='Qtd Jogos')]
-    ).properties(
-        height=300,
-        title=f"Distribuição das Famílias por {tipo_analise}"
-    )
+    # Criar um Heatmap de Contagem (Mais fácil de ler que barras empilhadas)
+    # Agrupar para ter os totais usando o DF filtrado
+    df_agg = df_sazonal.groupby([col_tempo, 'nome_familia']).size().reset_index(name='count')
+    
+    if df_agg.empty:
+        st.info("Nenhum dado disponível para os filtros selecionados.")
+    else:
+        heatmap = alt.Chart(df_agg).mark_rect().encode(
+            x=alt.X(f"{col_tempo}:O", title=tipo_analise, axis=alt.Axis(labelAngle=0 if tipo_analise != "Mês" else -45)),
+            y=alt.Y('nome_familia:N', title="Família"),
+            color=alt.Color('count:Q', scale=alt.Scale(scheme='lightmulti'), legend=alt.Legend(title="Qtd Jogos")),
+            tooltip=[col_tempo, 'nome_familia', 'count']
+        ).properties(
+            height=320,
+            title=f"Mapa de Calor: Ocorrências de Famílias por {tipo_analise}"
+        )
 
-    st.altair_chart(chart_temporal, use_container_width=True)
+        # Adicionar texto com o número exato para máxima clareza
+        text = heatmap.mark_text(baseline='middle').encode(
+            text='count:Q',
+            color=alt.condition(
+                alt.datum.count > (df_agg['count'].max() / 2),
+                alt.value('white'),
+                alt.value('black')
+            )
+        )
+
+        st.altair_chart(heatmap + text, width='stretch')
+
+        # Adicionar um Insight resumido
+        # Encontrar o maior valor por coluna (período selecionado)
+        idx_max = df_agg.groupby(col_tempo)['count'].idxmax()
+        destaques = df_agg.loc[idx_max].sort_values('count', ascending=False).head(3)
+        
+        st.markdown("#### 💡 Insights de Sazonalidade")
+        cols_ins = st.columns(len(destaques))
+        for i, (_, row) in enumerate(destaques.iterrows()):
+            cols_ins[i].metric(
+                label=f"Dominante em {row[col_tempo]}",
+                value=row['nome_familia'].split(" (")[0],
+                delta=f"{row['count']} jogos"
+            )
 
     return model, scaler, nomes_familias

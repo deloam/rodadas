@@ -4,23 +4,16 @@ import numpy as np
 import altair as alt
 
 def calcular_metricas(numeros):
-    """nao mexer aqui"""
-    PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-    MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
-    FIBONACCI = {1, 2, 3, 5, 8, 13, 21}
-    
-    impares = sum(1 for x in numeros if x % 2 != 0)
-    primos = sum(1 for x in numeros if x in PRIMOS)
-    moldura = sum(1 for x in numeros if x in MOLDURA)
-    fibo = sum(1 for x in numeros if x in FIBONACCI)
-    soma = sum(numeros)
+    """Calcula usando o motor base centralizado."""
+    from core.utils import calcular_metricas_dna
+    m = calcular_metricas_dna(numeros)
     
     return {
-        'Impares': impares,
-        'Primos': primos,
-        'Moldura': moldura,
-        'Fibo': fibo,
-        'Soma': soma
+        'Impares': m['impares'],
+        'Primos': m['primos'],
+        'Moldura': m['moldura'],
+        'Fibo': m['fibo'],
+        'Soma': m['soma']
     }
 
 def analisar_tendencias_recentes(df, window=20):
@@ -124,5 +117,5 @@ def renderizar_detector_tendencias(df):
         
         rule = base.mark_rule(color='green', strokeDash=[5,5]).encode(y=alt.datum(val_teorico))
         
-        st.altair_chart(line + rule, use_container_width=True)
+        st.altair_chart(line + rule, width='stretch')
         st.caption("Linha pontilhada verde = Padrão Teórico Matemático")

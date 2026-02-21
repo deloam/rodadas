@@ -23,34 +23,9 @@ TICKERS = {
     'LUA': 'LUMINOSIDADE'   # Ciclo Natural (0=Nova, 100=Cheia)
 }
 
-@st.cache_data(ttl=3600*12) # Cache de 12 horas
-def baixar_dados_financeiros(data_inicio, data_fim):
-    """
-    Baixa histórico financeiro diário (Preços e Variações).
-    Retorna tupla: (df_precos, df_retornos)
-    """
-    # Filtrar apenas tickers reais (que contêm ponto ou são códigos de bolsa)
-    real_tickers = [v for k,v in TICKERS.items() if k != 'LUA']
-    
-    try:
-        dados = yf.download(real_tickers, start=data_inicio, end=data_fim, progress=False)['Close']
-        
-        # Calcular Retorno Diário (%) e evitar FutureWarning
-        retornos = dados.ffill().pct_change() * 100 # Em porcentagem
-        retornos.index = pd.to_datetime(retornos.index).tz_localize(None) # Remove timezone para compatibilidade
-        dados.index = pd.to_datetime(dados.index).tz_localize(None)
-        
-        return dados, retornos
-    except Exception as e:
-        st.error(f"Erro ao baixar dados financeiros: {e}")
-        return pd.DataFrame(), pd.DataFrame()
-
-def salvar_dados_financeiros_db(df_precos, df_retornos):
-    """Persiste os dados financeiros no SQLite para inteligência futura."""
+def init_db_financeiro():
     conn = sqlite3.connect("previsoes.db")
     cursor = conn.cursor()
-    
-    # Garantir que a tabela existe (caso o modulo historico_previsoes nao tenha rodado)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS historico_financeiro (
         data TEXT,
@@ -60,31 +35,86 @@ def salvar_dados_financeiros_db(df_precos, df_retornos):
         PRIMARY KEY (data, ticker)
     )
     """)
-    
-    # Preparar Batch Insert
-    for ticker_code in df_precos.columns:
-        # Encontrar nome legível (chave) para o ticker (valor)
-        try:
-            ticker_nome = [k for k, v in TICKERS.items() if v == ticker_code][0]
-        except:
-            ticker_nome = ticker_code 
-            
-        series_preco = df_precos[ticker_code].dropna()
-        series_retorno = df_retornos[ticker_code].dropna()
-        
-        # Interseção de índices
-        datas_comuns = series_preco.index.intersection(series_retorno.index)
-        
-        for data in datas_comuns:
-            data_str = data.strftime("%Y-%m-%d")
-            p = float(series_preco.loc[data])
-            v = float(series_retorno.loc[data])
-            
-            cursor.execute("INSERT OR REPLACE INTO historico_financeiro VALUES (?, ?, ?, ?)", 
-                           (data_str, ticker_nome, p, v))
-            
     conn.commit()
+    return conn
+
+@st.cache_data(ttl=3600*12) # Cache de 12 horas
+def sincronizar_dados_financeiros(data_inicio, data_fim):
+    """
+    Sincroniza os dados do Yahoo Finance com o SQLite local.
+    Só baixa da internet os pregões que estão faltando na base de dados, economizando banda e tempo.
+    Retorna dois DataFrames: df_precos, df_retornos
+    """
+    conn = init_db_financeiro()
+    
+    # 1. Carregar todo o histórico do BD local
+    df_bd = pd.read_sql("SELECT * FROM historico_financeiro", conn)
+    
+    precisa_fetch = False
+    fetch_inicio = data_inicio
+    
+    if df_bd.empty:
+        precisa_fetch = True
+    else:
+        df_bd['data'] = pd.to_datetime(df_bd['data'])
+        max_date_db = df_bd['data'].max()
+        
+        # O Fetch acontece se o DB estiver defasado em mais de 3 dias considerando o data_fim
+        if pd.Timestamp(data_fim) - max_date_db > pd.Timedelta(days=3):
+            precisa_fetch = True
+            # Retorna 5 dias extras para garantir o cálculo de variação %
+            fetch_inicio = (max_date_db - pd.Timedelta(days=5)).to_pydatetime()
+            
+    # 2. Busca na Internet (B3) só se estiver desatualizado
+    if precisa_fetch:
+        real_tickers = [v for k,v in TICKERS.items() if k != 'LUA']
+        try:
+            dados = yf.download(real_tickers, start=fetch_inicio, end=data_fim, progress=False, ignore_tz=True)['Close']
+            
+            if not dados.empty:
+                retornos = dados.ffill().pct_change() * 100
+                retornos.index = pd.to_datetime(retornos.index).tz_localize(None)
+                dados.index = pd.to_datetime(dados.index).tz_localize(None)
+                
+                # Salvar os dias novos no SQLite Otimizado
+                cursor = conn.cursor()
+                for ticker_code in dados.columns:
+                    ticker_nome = next((k for k, v in TICKERS.items() if v == ticker_code), ticker_code)
+                        
+                    series_preco = dados[ticker_code].dropna()
+                    series_retorno = retornos[ticker_code].dropna()
+                    datas_comuns = series_preco.index.intersection(series_retorno.index)
+                    
+                    for data in datas_comuns:
+                        data_str = data.strftime("%Y-%m-%d")
+                        p = float(series_preco.loc[data])
+                        v = float(series_retorno.loc[data])
+                        cursor.execute("INSERT OR REPLACE INTO historico_financeiro VALUES (?, ?, ?, ?)", 
+                                       (data_str, ticker_nome, p, v))
+                conn.commit()
+                
+                # Atualiza memória com dados novos do BD
+                df_bd = pd.read_sql("SELECT * FROM historico_financeiro", conn)
+                df_bd['data'] = pd.to_datetime(df_bd['data'])
+        except Exception as e:
+            st.warning(f"Não foi possível buscar atualizações do mercado online. Usando dados cacheados locais. Erro: {e}")
+
     conn.close()
+    
+    if df_bd.empty:
+         return pd.DataFrame(), pd.DataFrame()
+         
+    # 3. Pivotar para formato esperado pelas métricas (colunas=Tickers, Index=Data)
+    mapa_inverso = {k: v for k, v in TICKERS.items()}
+    df_bd['ticker_code'] = df_bd['ticker'].map(mapa_inverso).fillna(df_bd['ticker'])
+    
+    # Recortar à janela solicitada
+    df_janela = df_bd[(df_bd['data'] >= pd.to_datetime(data_inicio)) & (df_bd['data'] <= pd.to_datetime(data_fim))]
+    
+    df_precos = df_janela.pivot(index='data', columns='ticker_code', values='fechamento')
+    df_retornos = df_janela.pivot(index='data', columns='ticker_code', values='variacao')
+    
+    return df_precos, df_retornos
 
 def get_fase_lua_luminosidade(data):
     """
@@ -198,15 +228,12 @@ def renderizar_caos_exogeno(df_loto):
     data_fim = datetime.datetime.now()
     data_inicio = data_fim - timedelta(days=365*3) # 3 anos de análise
     
-    with st.spinner("💸 Baixando dados da Bolsa (B3) e Dólar..."):
-        df_precos, df_mercado = baixar_dados_financeiros(data_inicio, data_fim)
+    with st.spinner("💸 Sincronizando com Base de Dados do Mercado (B3/Dólar)..."):
+        df_precos, df_mercado = sincronizar_dados_financeiros(data_inicio, data_fim)
     
     if df_mercado.empty:
-        st.warning("Não foi possível baixar dados financeiros. Verifique conexão.")
+        st.warning("Não foi possível carregar dados financeiros. Verifique conexão.")
         return
-
-    # Salvar no Data Lake
-    salvar_dados_financeiros_db(df_precos, df_mercado)
 
     # Filtrar loteria para mesmo período
     df_loto_recorte = df_loto[df_loto['data'] >= pd.to_datetime(data_inicio)].copy()
@@ -235,7 +262,7 @@ def renderizar_caos_exogeno(df_loto):
         width=700,
         height=300
     )
-    st.altair_chart(heatmap, use_container_width=True)
+    st.altair_chart(heatmap, width='stretch')
     
     # --- VISUALIZAÇÃO 2: TOP OPORTUNIDADES ---
     st.subheader("💎 Oportunidades de Ouro (Correlações Fortes)")

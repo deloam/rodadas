@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from lstm import preparar_dados, treinar_modelo
+from ai.lstm import preparar_dados, treinar_modelo
 from collections import Counter
 import random
 import altair as alt
@@ -144,11 +144,11 @@ def renderizar_tab_lab(df, n_dias):
                 # Linha de 11 pontos (Premiação Mínima)
                 rule = alt.Chart(pd.DataFrame({'y': [11]})).mark_rule(color='red', strokeDash=[5, 5]).encode(y='y')
                 
-                st.altair_chart(chart + rule, use_container_width=True)
+                st.altair_chart(chart + rule, width='stretch')
                 st.caption("A linha vermelha indica a zona de premiação (11 acertos).")
 
                 # Tabela detalhada
                 with st.expander("Ver detalhes dos jogos simulados"):
-                    st.dataframe(df_res[['Concurso', 'IA_Acertos', 'Random_Acertos', 'IA_Premio', 'IA_Palpite']], use_container_width=True)
+                    st.dataframe(df_res[['Concurso', 'IA_Acertos', 'Random_Acertos', 'IA_Premio', 'IA_Palpite']], width='stretch')
             else:
                 st.error("Dados insuficientes para simulação.")

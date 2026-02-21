@@ -147,7 +147,7 @@ def renderizar_analise_temporal(df):
         tooltip=['Número', alt.Tooltip('Frequência', format='.1%'), alt.Tooltip('Desvio', format='.1%'), 'Ocorrências']
     ).properties(height=300)
     
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width='stretch')
 
     # --- INSIGHTS AUTOMÁTICOS (NA SELEÇÃO ATUAL) ---
     st.markdown("---")

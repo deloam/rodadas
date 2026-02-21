@@ -3,17 +3,18 @@ import numpy as np
 import pandas as pd
 import random
 from collections import Counter
-from smart_clustering import treinar_modelo_clusters, extrair_metricas_avancadas
-from caos_exogeno import baixar_dados_financeiros, get_fase_lua_luminosidade, correlacionar_mercado_loteria, calcular_correlacao_exogena, TICKERS
+from analysis.smart_clustering import treinar_modelo_clusters, extrair_metricas_avancadas
+from data.caos_exogeno import sincronizar_dados_financeiros, get_fase_lua_luminosidade, correlacionar_mercado_loteria, calcular_correlacao_exogena, TICKERS
 import datetime
 import streamlit as st
 
 class EvoEngine:
     def __init__(self, df_historico):
         self.df = df_historico
-        self.PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-        self.MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
-        self.FIBONACCI = {1, 2, 3, 5, 8, 13, 21}
+        from core.constants import PRIMOS, MOLDURA, FIBONACCI
+        self.PRIMOS = PRIMOS
+        self.MOLDURA = MOLDURA
+        self.FIBONACCI = FIBONACCI
         
         # Cache de Sinergia (Quais números saem juntos)
         self.matrix_sinergia = self._calcular_matriz_sinergia()
@@ -38,18 +39,13 @@ class EvoEngine:
         seq = sorted(list(individuo))
         n = len(seq)
         
-        # 1. Critérios Matemáticos (Equilíbrio)
-        impares = sum(1 for x in seq if x % 2 != 0)
-        score += 10 if 7 <= impares <= 9 else (5 if 6 <= impares <= 10 else 0)
+        # 1. Critérios Matemáticos (Equilíbrio via Utils)
+        from core.utils import avaliar_qualidade_jogo
         
-        primos = sum(1 for x in seq if x in self.PRIMOS)
-        score += 10 if 5 <= primos <= 6 else (5 if 4 <= primos <= 7 else 0)
-        
-        moldura = sum(1 for x in seq if x in self.MOLDURA)
-        score += 10 if 9 <= moldura <= 11 else (5 if 8 <= moldura <= 12 else 0)
-        
-        soma = sum(seq)
-        score += 10 if 180 <= soma <= 220 else (5 if 170 <= soma <= 230 else 0)
+        ultima_rodada = set(self.df.iloc[-1]['numeros'])
+        score_base, _ = avaliar_qualidade_jogo(seq, ultima_rodada)
+        # Ajustar a escala do score base para o fitness do AG (score_base vai de 0 a 10 normalmente, AG estava gerando scores perto de 50-60)
+        score += score_base * 5 
         
         # 2. Sinergia Histórica (Pares Fortes)
         sinergia_total = 0
@@ -67,10 +63,6 @@ class EvoEngine:
                 impacto_exogeno += df_corr_exogena[df_corr_exogena['Dezena'] == num]['Correlação'].sum()
             score += impacto_exogeno * 100
             
-        # 4. Repetentes da Última Rodada
-        ultima_rodada = set(self.df.iloc[-1]['numeros'])
-        repetentes = len(set(seq).intersection(ultima_rodada))
-        score += 15 if 8 <= repetentes <= 10 else (7 if 7 <= repetentes <= 11 else -10)
         
         return score
 
@@ -82,7 +74,7 @@ class EvoEngine:
         try:
             data_fim = datetime.datetime.now()
             data_inicio = data_fim - datetime.timedelta(days=365)
-            _, df_mercado = baixar_dados_financeiros(data_inicio, data_fim)
+            _, df_mercado = sincronizar_dados_financeiros(data_inicio, data_fim)
             if not df_mercado.empty:
                 df_full = correlacionar_mercado_loteria(self.df.tail(200), df_mercado)
                 df_corr = calcular_correlacao_exogena(df_full)
@@ -185,23 +177,16 @@ class EvoEngine:
             seq = sorted(unique_pop[melhor_idx])
             
             # Métricas
-            impares = sum(1 for x in seq if x % 2 != 0)
-            primos = sum(1 for x in seq if x in self.PRIMOS)
-            moldura = sum(1 for x in seq if x in self.MOLDURA)
-            fibo = sum(1 for x in seq if x in self.FIBONACCI)
-            soma = sum(seq)
+            from core.utils import calcular_metricas_dna
+            m = calcular_metricas_dna(seq)
             ultima_rodada = set(self.df.iloc[-1]['numeros'])
-            repetentes = len(set(seq).intersection(ultima_rodada))
+            m['repetentes'] = len(set(seq).intersection(ultima_rodada))
             
             resultados_finais.append({
                 'seq': seq,
                 'score': int(fitness_unique[melhor_idx]), # Mostramos o score original
                 'confianca': min(fitness_unique[melhor_idx] / 2, 100),
-                'metrics': {
-                    'impares': impares, 'primos': primos, 
-                    'moldura': moldura, 'fibo': fibo,
-                    'repetentes': repetentes, 'soma': soma
-                }
+                'metrics': m
             })
             
         return resultados_finais, historico_fitness
