@@ -47,6 +47,9 @@ def renderizar_tab_previsao(
         pass # Silenciar erros
     st.markdown("---")
     
+    st.markdown("### 🌌 Configuração de Sincronicidade")
+    integrar_mercado = st.checkbox("Habilitar Sincronicidade Fixa (IA + Mercado Financeiro)", value=True, help="Injeta a força gravitacional da Bolsa e Dólar de hoje nas probabilidades da Inteligência Artificial. Metade dos jogos gerados será normal, metade usará a influência do Caos Exógeno.")
+    
     c1, c2 = st.columns(2)
     btn_ia = c1.button("🔮 Previsão IA")
     btn_random = c2.button("🎲 Gerar 100% Aleatório")
@@ -69,7 +72,8 @@ def renderizar_tab_previsao(
              resultados.append({
                 'seq': seq,
                 'score': 0, 
-                'metrics': m
+                'metrics': m,
+                'origem': '🎲 Aleatório Absoluto'
              })
         
         # --- VISUALIZAÇÃO COM ORDENAÇÃO ---
@@ -146,14 +150,56 @@ def renderizar_tab_previsao(
                     
                     ultima_rodada = set(df_filtrado.iloc[-1]['numeros'])
                     
-                    resultados = engine.simular_jogos(
-                        probabilidades, 
-                        qtd_sequencias=qtd_sequencias, 
-                        qtd_numeros=qtd_numeros, 
-                        nums_fixos=nums_fixos, 
-                        nums_excluidos=nums_excluidos, 
-                        ultima_rodada=ultima_rodada
-                    )
+                    if integrar_mercado and qtd_sequencias > 1:
+                        qtd_com_mercado = qtd_sequencias // 2
+                        qtd_sem_mercado = qtd_sequencias - qtd_com_mercado
+                        
+                        st.write("🌌 Baixando humores do mercado financeiro hoje...")
+                        from data.caos_exogeno import calcular_multiplicadores_exogenos
+                        multiplicadores = calcular_multiplicadores_exogenos(df)
+                        
+                        # Recalcular probabilidades (array original tem 25 posições, índice 0 = bola 1)
+                        probabilidades_com_mercado = [
+                            min(0.99, max(0.01, probabilidades[i] * multiplicadores.get(i+1, 1.0))) 
+                            for i in range(25)
+                        ]
+                        
+                        st.write(f"🎲 Simulando {qtd_sem_mercado} jogos com IA Normal e {qtd_com_mercado} com Caos Exógeno...")
+                        
+                        # 1. Metade SEM mercado
+                        resultados_sem = engine.simular_jogos(
+                            probabilidades, qtd_sequencias=qtd_sem_mercado, 
+                            qtd_numeros=qtd_numeros, nums_fixos=nums_fixos, 
+                            nums_excluidos=nums_excluidos, ultima_rodada=ultima_rodada
+                        )
+                        for r in resultados_sem:
+                            r['origem'] = '🤖 IA Padrão (Estatística Pura)'
+                            
+                        # 2. Metade COM mercado
+                        resultados_com = engine.simular_jogos(
+                            probabilidades_com_mercado, qtd_sequencias=qtd_com_mercado, 
+                            qtd_numeros=qtd_numeros, nums_fixos=nums_fixos, 
+                            nums_excluidos=nums_excluidos, ultima_rodada=ultima_rodada
+                        )
+                        for r in resultados_com:
+                            r['origem'] = '🌌 IA + Mercado (Sincronicidade)'
+                            
+                        resultados = resultados_sem + resultados_com
+                        
+                        # Embaralhar para evitar que todos da IA fiquem na pg 1 e os do Mercado na pg 2
+                        random.shuffle(resultados)
+                        
+                    else:
+                        resultados = engine.simular_jogos(
+                            probabilidades, 
+                            qtd_sequencias=qtd_sequencias, 
+                            qtd_numeros=qtd_numeros, 
+                            nums_fixos=nums_fixos, 
+                            nums_excluidos=nums_excluidos, 
+                            ultima_rodada=ultima_rodada
+                        )
+                        for r in resultados:
+                            r['origem'] = '🤖 IA Padrão (Estatística Pura)'
 
                     # Salvar Palpites
                     if len(resultados) <= 100:
@@ -271,12 +317,17 @@ def renderizar_tab_previsao(
 
             # Confiança Bar (Visual)
             cor_conf = "#f1c40f" if conf < 70 else "#27ae60"
+            
+            origem_nome = item.get('origem', '🤖 IA Padrão')
+            cor_origem = "#9b59b6" if "Mercado" in origem_nome else "#3498db" if "Aleatório" in origem_nome else "#f39c12"
+            
             conf_html = f"""
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px">
-                <span style="font-size:12px; color:#555">🤖 Confiança IA:</span>
+                <span style="font-size:12px; color:#555">🎯 Confiança IA:</span>
                 <div style="flex-grow:1; background:#eee; height:8px; border-radius:4px; max-width:100px;">
                     <div style="width:{min(conf, 100)}%; background:{cor_conf}; height:100%; border-radius:4px;"></div>
                 </div>
+                <span style='background-color:{cor_origem}; color:white; padding:2px 6px; border-radius:12px; font-size:11px; margin-left:10px'>{origem_nome}</span>
             </div>
             """
             

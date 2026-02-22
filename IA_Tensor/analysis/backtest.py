@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from ai.lstm import preparar_dados, treinar_modelo
 from collections import Counter
 import random
 import altair as alt

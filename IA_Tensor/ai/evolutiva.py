@@ -2,9 +2,7 @@
 import numpy as np
 import pandas as pd
 import random
-from collections import Counter
-from analysis.smart_clustering import treinar_modelo_clusters, extrair_metricas_avancadas
-from data.caos_exogeno import sincronizar_dados_financeiros, get_fase_lua_luminosidade, correlacionar_mercado_loteria, calcular_correlacao_exogena, TICKERS
+from data.caos_exogeno import sincronizar_dados_financeiros, correlacionar_mercado_loteria, calcular_correlacao_exogena
 import datetime
 import streamlit as st
 

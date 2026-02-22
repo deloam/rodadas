@@ -1,9 +1,5 @@
-import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.multioutput import MultiOutputRegressor
-import joblib
-import os
 
 def preparar_dados_ensemble(df, janela_atraso=10):
     """

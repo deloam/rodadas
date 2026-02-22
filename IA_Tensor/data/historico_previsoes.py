@@ -133,6 +133,7 @@ def salvar_previsoes_detalhadas(resultados, df_historico):
         dia_semana_pt = mapa_dias.get(dia_semana_en, dia_semana_en)
         
         contexto = {
+            "origem": item.get('origem', '🤖 IA Padrão (Estatística Pura)'),
             "dia_semana": dia_semana_pt,
             "dia": int(data_geracao.day),
             "mes": int(data_geracao.month),
@@ -270,30 +271,41 @@ def executar_retro_analise(df_historico):
         cursor.execute("SELECT acertos_futuros, contexto_temporal FROM previsoes WHERE status_conferencia = 'conferido'")
         rows = cursor.fetchall()
         
-        acertos_pares = []
-        acertos_impares = []
+        acertos_ia = []
+        acertos_mercado = []
         
         for r in rows:
             ctx = json.loads(r['contexto_temporal'])
             hits = r['acertos_futuros']
-            if ctx.get('dia_eh_par'):
-                acertos_pares.append(hits)
+            origem = ctx.get('origem', '')
+            
+            if 'Mercado' in origem or 'Sincronicidade' in origem:
+                acertos_mercado.append(hits)
             else:
-                acertos_impares.append(hits)
+                acertos_ia.append(hits)
         
-        media_par = sum(acertos_pares)/len(acertos_pares) if acertos_pares else 0
-        media_impar = sum(acertos_impares)/len(acertos_impares) if acertos_impares else 0
+        media_ia = sum(acertos_ia)/len(acertos_ia) if acertos_ia else 0
+        media_mercado = sum(acertos_mercado)/len(acertos_mercado) if acertos_mercado else 0
         
-        melhor_dia = "Neutro"
-        if media_par > media_impar * 1.05: melhor_dia = "Dias PARES"
-        elif media_impar > media_par * 1.05: melhor_dia = "Dias ÍMPARES"
+        if media_mercado == 0 and media_ia > 0:
+            melhor_motor = "Apenas IA Padrão testada"
+            detalhe_vies = f"Média IA Pura: {media_ia:.2f}"
+        elif media_mercado > media_ia: 
+            melhor_motor = "🌌 IA + Mercado (Sincronicidade está Vencendo!)"
+            detalhe_vies = f"A influência da Bolsa/Dólar está gerando em média **{media_mercado:.2f} acertos**, contra **{media_ia:.2f}** da IA Padrão."
+        elif media_ia > media_mercado: 
+            melhor_motor = "🤖 IA Padrão (Estatística Pura está Vencendo!)"
+            detalhe_vies = f"Jogar puro com a Matemática (Média {media_ia:.2f}) está batendo o Caos de Mercado (Média {media_mercado:.2f})."
+        else:
+            melhor_motor = "⚔️ Empate Técnico"
+            detalhe_vies = f"Ambos os motores cravam média de {media_ia:.2f} acertos."
 
         relatorio = {
-            "msg": "✅ Retro-Análise Disponível",
+            "msg": "✅ Calibragem de Motores Disponível",
             "media_global": media_acertos,
             "total_analisado": conferidos_count,
-            "vies_descoberto": f"A IA está performando melhor em **{melhor_dia}**.",
-            "detalhe": f"Média Pares: {media_par:.2f} | Média Ímpares: {media_impar:.2f}"
+            "vies_descoberto": f"Motor mais lucrativo recente: **{melhor_motor}**",
+            "detalhe": detalhe_vies
         }
     else:
         relatorio = f"Calibragem em andamento: {conferidos_count}/20 palpites conferidos."

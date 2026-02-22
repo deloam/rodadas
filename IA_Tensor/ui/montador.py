@@ -1,7 +1,4 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import altair as alt
 
 def renderizar_montador_manual(df):
     st.markdown("## 🏗️ Montador Manual Interativo")

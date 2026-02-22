@@ -1,40 +1,20 @@
 import streamlit as st
 import pandas as pd
-import json
 from datetime import datetime
-from ai.lstm import preparar_dados, treinar_modelo, prever_proxima_rodada
 from analysis.analise_padroes import renderizar_analise_padroes, renderizar_ciclos
-import numpy as np
-import os
-from keras.models import load_model, save_model
-from collections import Counter
 from ui.desdobramento import renderizar_tab_desdobramento
 from analysis.backtest import renderizar_tab_lab
-import altair as alt
 from data.atualizador import atualizar_dados
-import random
-from ai.ensemble import treinar_ensemble, prever_ensemble # Segundo Cérebro
 from analysis.analise_temporal import renderizar_analise_temporal
 from ui.montador import renderizar_montador_manual
 from analysis.analise_conexoes import renderizar_mapa_conexoes
-from data.historico_previsoes import salvar_previsoes_detalhadas, renderizar_historico_previsoes_tab, executar_retro_analise, sincronizar_resultados
-from ui.dashboard_resumo import renderizar_dashboard_resumo
 from analysis.analise_tendencias import renderizar_detector_tendencias 
-from ai.ia_critica import analisar_riscos_jogo
-from ui.visualizacao import plotar_radar_equilibrio
 from analysis.smart_clustering import renderizar_clusters
 from ui.manual import renderizar_manual_instrucoes
 from data.caos_exogeno import renderizar_caos_exogeno
 from ui.tab_previsao import renderizar_tab_previsao
-from ai.engine import AIEngine
-
 from ai.evolutiva import renderizar_tab_evolutiva
-
-
-
-# ... (rest of imports/functions) ...
-
-from core.data_loader import carregar_dados, extrair_features, preencher_frequencias, contar_frequencias
+from core.data_loader import carregar_dados
 
 st.set_page_config(layout="wide", page_title="IA Lotofácil Pro") #tamanho da tela
 st.title("IA - Previsão de Rodada")
@@ -104,7 +84,6 @@ with tab_evolutiva:
 
 
 with tab_analise:
-    # Passamos o DF completo para a função, pois ela agora tem filtros próprios
     renderizar_detector_tendencias(df) # Nova Feature
     renderizar_clusters(df)
     renderizar_analise_padroes(df)
