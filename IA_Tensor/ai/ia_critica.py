@@ -1,4 +1,7 @@
-def analisar_riscos_jogo(numeros):
+import pandas as pd
+from core.utils import verificar_ineditismo
+
+def analisar_riscos_jogo(numeros, df_historico=None):
     """
     Analisa um jogo (lista de números) e retorna alertas de riscos
     baseados em anomalias estatísticas extremas (Advogado do Diabo).
@@ -6,6 +9,19 @@ def analisar_riscos_jogo(numeros):
     numeros = sorted(list(numeros))
     riscos = []
     
+    # 0. Verificação de Ineditismo Histórico e Regra de Ouro (8 a 10 Repetidas)
+    if df_historico is not None and len(df_historico) > 0:
+         inedito_msg = verificar_ineditismo(df_historico, numeros)
+         if inedito_msg and "ALERTA VERMELHO" in inedito_msg:
+              riscos.append(f"⛔ {inedito_msg}")
+              
+         # Regra Ouro: Cruzar com o imediatamente anterior
+         ultimo_jogo_oficial = set(df_historico.iloc[-1]['numeros'])
+         repetidas_ontem = len(set(numeros).intersection(ultimo_jogo_oficial))
+         
+         if repetidas_ontem < 8 or repetidas_ontem > 10:
+             riscos.append(f"⚠️ Matemática Perigosa: Você repetiu {repetidas_ontem} números do último sorteio. Essa configuração falha em 80% das vezes. A Regra de Ouro indica repetir de 8 a 10 números.")
+             
     # 1. Sequência Monstruosa (Ex: 1,2,3,4,5,6)
     consecutivos = 0
     max_consec = 0

@@ -208,7 +208,7 @@ def renderizar_clusters(df):
         st.info("Nenhum dado disponível para os filtros selecionados.")
     else:
         heatmap = alt.Chart(df_agg).mark_rect().encode(
-            x=alt.X(f"{col_tempo}:O", title=tipo_analise, axis=alt.Axis(labelAngle=0 if tipo_analise != "Mês" else -45)),
+            x=alt.X(f"{col_tempo}:O", title=tipo_analise, axis=alt.Axis(labelAngle=0)),
             y=alt.Y('nome_familia:N', title="Família"),
             color=alt.Color('count:Q', scale=alt.Scale(scheme='lightmulti'), legend=alt.Legend(title="Qtd Jogos")),
             tooltip=[col_tempo, 'nome_familia', 'count']
@@ -229,18 +229,13 @@ def renderizar_clusters(df):
 
         st.altair_chart(heatmap + text, width='stretch')
 
-        # Adicionar um Insight resumido
         # Encontrar o maior valor por coluna (período selecionado)
         idx_max = df_agg.groupby(col_tempo)['count'].idxmax()
         destaques = df_agg.loc[idx_max].sort_values('count', ascending=False).head(3)
         
-        st.markdown("#### 💡 Insights de Sazonalidade")
-        cols_ins = st.columns(len(destaques))
-        for i, (_, row) in enumerate(destaques.iterrows()):
-            cols_ins[i].metric(
-                label=f"Dominante em {row[col_tempo]}",
-                value=row['nome_familia'].split(" (")[0],
-                delta=f"{row['count']} jogos"
-            )
+        st.markdown("#### 💡 Insights Guiados de Sazonalidade")
+        for _, row in destaques.iterrows():
+            familia_nome = row['nome_familia'].split(" (")[0]
+            st.info(f"**Em {row[col_tempo]}**, historicamente a **{familia_nome}** domina com {row['count']} ocorrências registradas no período selecionado. Considere usar este padrão caso vá apostar nesta época.")
 
     return model, scaler, nomes_familias

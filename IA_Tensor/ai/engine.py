@@ -132,6 +132,53 @@ class AIEngine:
             
             seq = sorted(list(escolhidos))
             
+            # --- VERIFICAÇÃO DE INEDITISMO EMBUTIDA NA GERAÇÃO ---
+            # Evita gerar jogos que já saíram na história se houver alternativas
+            from core.utils import verificar_ineditismo
+            if hasattr(self, 'df'):
+                 # 1. Filtro: Já Saiu na História?
+                 msg = verificar_ineditismo(self.df, seq)
+                 
+                 # 2. Filtro (Regra de Ouro Temporal): Repeteco do último concurso (8 a 10 permitidos)
+                 ultimo_jogo = set(self.df.iloc[-1]['numeros'])
+                 repetidas = len(set(seq).intersection(ultimo_jogo))
+                 passou_regra_temporal = (8 <= repetidas <= 10)
+                 
+                 tentativas_correcao = 0
+                 
+                 # Loop de Mutação Genética Rápida se quebrar regra de Ineditismo OU Regra Temporal
+                 while ((msg and "ALERTA" in msg) or not passou_regra_temporal) and tentativas_correcao < 10:
+                     nao_fixos = list(set(seq) - set(nums_fixos))
+                     if not nao_fixos: break # Impossível corrigir se todos são fixos pelo usuário
+                     
+                     # Escolhe quem vai morrer 
+                     semente_morta = np.random.choice(nao_fixos)
+                     seq.remove(semente_morta)
+                     
+                     # Busca substituto
+                     candidatos_vivos = list(set(range(1, 26)) - set(seq) - set(nums_excluidos))
+                     if candidatos_vivos:
+                         # Tenta puxar da roda de probabilidade original se der, senão aleatório ponderado
+                         pesos_candidatos = [prob_final[n-1] for n in candidatos_vivos]
+                         soma_pesos = sum(pesos_candidatos)
+                         if soma_pesos > 0:
+                             pesos_norm = [p/soma_pesos for p in pesos_candidatos]
+                             novo_num = np.random.choice(candidatos_vivos, p=pesos_norm)
+                         else:
+                             novo_num = np.random.choice(candidatos_vivos)
+                         
+                         seq.append(novo_num)
+                     
+                     seq = sorted(seq)
+                     
+                     # Re-testa
+                     msg = verificar_ineditismo(self.df, seq)
+                     repetidas = len(set(seq).intersection(ultimo_jogo))
+                     passou_regra_temporal = (8 <= repetidas <= 10)
+                     
+                     tentativas_correcao += 1
+
+            
             # Cálculo de Confiança
             soma_probs = sum(probabilidades[n-1] for n in seq)
             confianca = min(soma_probs * 20 * 100 / qtd_numeros, 100)

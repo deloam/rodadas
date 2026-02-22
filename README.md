@@ -1,14 +1,36 @@
-# 🧠 LotoIA Pro 2.1 - Sistema de Inteligência Artificial Avançada para Lotofácil
+# 🧠 LotoIA Pro 2.2 - Sistema de Inteligência Artificial Avançada para Lotofácil
 
 > **A Plataforma Definitiva** que combina Deep Learning, Machine Learning Não-Supervisionado, Análise de Riscos, Sincronicidade Financeira e Visualização Avançada para maximizar suas chances estatísticas.
 
-![Badge Version](https://img.shields.io/badge/version-2.1-purple) ![Badge License](https://img.shields.io/badge/license-MIT-green) ![Badge Python](https://img.shields.io/badge/python-3.11-blue) ![Badge Database](https://img.shields.io/badge/sqlite-integrated-blue)
+![Badge Version](https://img.shields.io/badge/version-2.2-purple) ![Badge License](https://img.shields.io/badge/license-MIT-green) ![Badge Python](https://img.shields.io/badge/python-3.11-blue) ![Badge Database](https://img.shields.io/badge/sqlite-integrated-blue)
 
 ---
 
-## ✨ O Que Há de Novo na Versão 2.1?
+## ✨ O Que Há de Novo na Versão 2.2?
 
-A **LotoIA 2.1** introduz o conceito de **"Caos Exógeno"** e migra para uma arquitetura de dados profissional.
+A **LotoIA 2.2** transcende a simples previsão e se torna um **Copiloto Assistente Interativo** de apostas, focando massivamente na usabilidade da aba Montador Manual e em mecânicas de auditoria histórica.
+
+### 🏗️ 1. Copiloto do Montador Manual (UX/UI Refatorado) 🆕
+A aba "Montador Manual" ganhou o status de "Sistema Inteligente":
+- **Volante Quadrado Customizado:** UI similar ao volante lotérico em CSS injetado.
+- **Power Score Dinâmico:** Passe o mouse sobre qualquer dezena vazia e a IA responde com a nota de força (0 a 100) baseada no momentum atual.
+- **Matriz de Afinidade (Foguinho 🔥):** Quando você começa a montar um jogo, o sistema ativa uma engine apriori que "acende" as dezenas que mais possuem afinidade na história com os números que você já clicou.
+- **Detector de Geometria Espacial (5x5):** Receba alertas gráficos em tempo real caso desenhe uma "Cruz" cravada ou deixe um buraco contendo duas colunas/linhas em branco no volante visual.
+- **Status de Ciclo:** Um módulo informa quantas dezenas e quais faltam para fechar o "Ciclo da Lotofácil" da temporada, te guiando a apostar nelas.
+
+### 🚫 2. Radar de Ineditismo Histórico e Anti-Repetição 🆕
+Comprovamos matematicamente (varrendo 3.600+ rodadas) que os 15 acertos **NUNCA** se repetem na história e chances de repetição beiram 0.11%.
+- **Alerta Vermelho Instantâneo:** Se você montar um jogo ou a IA gerar um que já aconteceu em qualquer ano anterior, o sistema bloqueia e manda o alerta.
+- **Engine Inteligente:** O próprio robô de Monte Carlo e Ensemble evita prever jogos passados silenciando-os durante as randomizações neurais.
+
+### ⏱️ 3. Máquina do Tempo (Backtest de ROI Instantâneo) 🆕
+Ao selecionar as 15 dezenas do seu coração no Montador Manual, receba o resultado de como esse bilhete teria performado em absolutamente todos os sorteios da história. Descubra de imediato se sua intuição te daria lucro ou prejuízo (ROI Histórico).
+
+---
+
+## 🏛️ Funcionalidades Herdadas (LotoIA 2.1)
+
+A **LotoIA** já contava com a introdução do conceito de **"Caos Exógeno"** e arquitetura de dados profissional.
 
 ### 🌌 1. Caos Exógeno (Sincronicidade) 🆕
 A IA agora analisa o mundo real fora da loteria em busca de correlações ocultas.

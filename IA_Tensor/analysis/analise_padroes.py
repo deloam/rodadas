@@ -219,7 +219,7 @@ def renderizar_analise_padroes(df):
         count_impares.columns = ['Qtd', 'Ocorrências']
         
         c1 = alt.Chart(count_impares).mark_bar(color='#FF6F61').encode(
-            x=alt.X('Qtd:O', title='Qtd. Ímpares', sort='ascending'),
+            x=alt.X('Qtd:O', title='Qtd. Ímpares', sort='ascending', axis=alt.Axis(labelAngle=0)),
             y='Ocorrências:Q',
             tooltip=['Qtd', 'Ocorrências']
         )
@@ -232,7 +232,7 @@ def renderizar_analise_padroes(df):
         count_primos.columns = ['Qtd', 'Ocorrências']
         
         c2 = alt.Chart(count_primos).mark_bar(color='#6B5B95').encode(
-            x=alt.X('Qtd:O', title='Qtd. Primos', sort='ascending'),
+            x=alt.X('Qtd:O', title='Qtd. Primos', sort='ascending', axis=alt.Axis(labelAngle=0)),
             y='Ocorrências:Q',
             tooltip=['Qtd', 'Ocorrências']
         )

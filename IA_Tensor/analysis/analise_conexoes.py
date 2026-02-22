@@ -66,7 +66,7 @@ def renderizar_mapa_conexoes(df):
         
         # Heatmap
         chart = alt.Chart(df_heat).mark_rect().encode(
-            x=alt.X('Num A:O', title='Número A'),
+            x=alt.X('Num A:O', title='Número A', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('Num B:O', title='Número B'),
             color=alt.Color('Frequência (%):Q', scale=alt.Scale(scheme='redblue', reverse=True), legend=None),
             tooltip=['Num A', 'Num B', 'Frequência (%)', 'Força']

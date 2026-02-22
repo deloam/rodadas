@@ -102,7 +102,7 @@ def renderizar_detector_tendencias(df):
         df_chart = df_metrics.reset_index()
         df_chart['Index'] = df_metrics.index + 1 # Apenas sequencial 1..20
         
-        base = alt.Chart(df_chart).encode(x=alt.X('Index:O', title='Últimos Jogos (Recente -> Atual)', axis=alt.Axis(labelAngle=1)))
+        base = alt.Chart(df_chart).encode(x=alt.X('Index:O', title='Últimos Jogos (Recente -> Atual)', axis=alt.Axis(labelAngle=0)))
         
         line = base.mark_line(point=True, color='#e74c3c').encode(
             y=alt.Y(metrica_sel, scale=alt.Scale(zero=False), title=metrica_sel, axis=alt.Axis(tickMinStep=1, format='d')),

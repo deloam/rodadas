@@ -12,6 +12,7 @@ from analysis.analise_tendencias import renderizar_detector_tendencias
 from analysis.smart_clustering import renderizar_clusters
 from ui.manual import renderizar_manual_instrucoes
 from data.caos_exogeno import renderizar_caos_exogeno
+from ui.teorias_ludicas import renderizar_tab_teorias_ludicas
 from ui.tab_previsao import renderizar_tab_previsao
 from ai.evolutiva import renderizar_tab_evolutiva
 from core.data_loader import carregar_dados
@@ -70,7 +71,7 @@ with st.sidebar.expander("✅ Conferir Resultado & Treinar", expanded=False):
 usar_aprendizado = st.sidebar.checkbox("Usar aprendizado persistente", value=False)
 salvar_aprendizado = st.sidebar.checkbox("Salvar aprendizado após execução", value=False)
 
-tab_manual, tab_previsao, tab_evolutiva, tab_analise, tab_montador, tab_desdobra, tab_lab, tab_caos = st.tabs(["📘 Manual", "🔮 Previsão", "🧬 IA Evolutiva", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório", "🌌 Caos Exógeno"])
+tab_manual, tab_previsao, tab_evolutiva, tab_analise, tab_montador, tab_desdobra, tab_lab, tab_ludico, tab_caos = st.tabs(["📘 Manual", "🔮 Previsão", "🧬 IA Evolutiva", "📊 Análise", "🏗️ Montador", "🔢 Desdobrador", "🧪 Laboratório", "🎭 Lúdico", "🌌 Caos Exógeno"])
 
 
 # Filtrar dados para análise baseado no sidebar definido acima
@@ -95,10 +96,13 @@ with tab_montador:
     renderizar_montador_manual(df)
 
 with tab_desdobra:
-    renderizar_tab_desdobramento()
+    renderizar_tab_desdobramento(df)
 
 with tab_lab:
     renderizar_tab_lab(df, int(n_dias))
+
+with tab_ludico:
+    renderizar_tab_teorias_ludicas(df)
 
 with tab_caos:
     renderizar_caos_exogeno(df)

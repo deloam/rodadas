@@ -47,6 +47,40 @@ def renderizar_tab_previsao(
         pass # Silenciar erros
     st.markdown("---")
     
+    # --- INTEGRAÇÃO DA ABA ANÁLISE: BRIEFING CONTEXTUAL ---
+    try:
+        from analysis.analise_tendencias import analisar_tendencias_recentes
+        from analysis.smart_clustering import treinar_modelo_clusters
+        
+        st.markdown("### 📊 Inteligência de Mercado (Contexto Atual)")
+        c_i1, c_i2 = st.columns([1, 1])
+        
+        with c_i1:
+            # Clusters
+            numeros_tuple = tuple(tuple(x) for x in df['numeros'])
+            model, scaler, X_raw, nomes_familias, _ = treinar_modelo_clusters(numeros_tuple)
+            X_scaled = scaler.transform(X_raw)
+            labels = model.predict(X_scaled)
+            ultimo_idx = len(df) - 1
+            cluster_ultimo = labels[ultimo_idx]
+            familia_atual = nomes_familias[cluster_ultimo]
+            
+            st.info(f"📍 **O Último Sorteio** foi classificado na **{familia_atual}**.")
+            
+        with c_i2:
+            # Tendências
+            _, insights = analisar_tendencias_recentes(df, window=20)
+            if not insights:
+                st.success("✅ **Tendências:** O mercado está operando em normalidade estatística.")
+            else:
+                alerta_principal = insights[0] # Pegar a mais forte
+                st.warning(f"{alerta_principal['estado']}: **{alerta_principal['metrica']}**. {alerta_principal['dica']}")
+                
+    except Exception as e:
+        pass
+    
+    st.markdown("---")
+    
     st.markdown("### 🌌 Configuração de Sincronicidade")
     integrar_mercado = st.checkbox("Habilitar Sincronicidade Fixa (IA + Mercado Financeiro)", value=True, help="Injeta a força gravitacional da Bolsa e Dólar de hoje nas probabilidades da Inteligência Artificial. Metade dos jogos gerados será normal, metade usará a influência do Caos Exógeno.")
     
@@ -354,7 +388,7 @@ def renderizar_tab_previsao(
             st.markdown(f"<div style='margin-top:5px'>{badges_html}</div>", unsafe_allow_html=True)
             
             # --- INTEGRAÇÃO: ADVOGADO DO DIABO (IA CRÍTICA) ---
-            alerts = analisar_riscos_jogo(r)
+            alerts = analisar_riscos_jogo(r, df_filtrado_analise)
             if alerts:
                 # Mostrar alertas críticos
                 for alert in alerts:
